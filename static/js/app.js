@@ -57,6 +57,11 @@ window.LedgerApp = {
         };
       }
 
+      // 8. Register Service Worker for PWA
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/static/sw.js').catch(() => {});
+      }
+
     } catch (err) {
       console.error('Ledger Init Failure:', err);
     }
@@ -78,8 +83,35 @@ window.LedgerApp = {
       link.classList.toggle('active', link.getAttribute('data-route') === route);
     });
 
+    // Update dynamic header title for mobile view
+    const titleMap = {
+      'dashboard': 'Dashboard',
+      'transactions': 'Transactions',
+      'budgets': 'Budgets',
+      'analytics': 'Analytics',
+      'goals': 'Goals',
+      'calendar': 'Financial Calendar',
+      'purchases': 'Purchases Vault',
+      'documents': 'Document Vault',
+      'shared-expenses': 'Shared Expenses',
+      'twin': 'Financial Twin',
+      'health': 'Health Center',
+      'net-worth': 'Net Worth',
+      'ai': 'Ask Ledger AI',
+      'reports': 'Reports & Export',
+      'settings': 'Settings',
+      'more': 'More Hub'
+    };
+    const titleEl = document.getElementById('mobile-header-active-title');
+    if (titleEl) {
+      titleEl.textContent = titleMap[route] || 'Ledger';
+    }
+
     const container = document.getElementById('view-container');
     if (!container) return;
+
+    // Scroll to top on navigation
+    window.scrollTo(0, 0);
 
     // Route dispatch
     switch (route) {
@@ -128,6 +160,9 @@ window.LedgerApp = {
       case 'settings':
         window.LedgerViews.settings.render(container);
         break;
+      case 'more':
+        window.LedgerViews.more.render(container);
+        break;
       default:
         window.LedgerViews.dashboard.render(container);
     }
@@ -165,12 +200,22 @@ window.LedgerApp = {
     }
   },
 
+  openSearchModal() {
+    this.handleGlobalSearch(' ');
+    setTimeout(() => {
+      const inp = document.getElementById('modal-search-input');
+      if (inp) inp.focus();
+    }, 100);
+  },
+
   async handleGlobalSearch(q) {
     let modal = document.getElementById('global-search-modal');
-    if (!q) {
+    if (q === null || q === undefined) {
       if (modal) modal.remove();
       return;
     }
+
+    const trimmed = (q || '').trim();
 
     if (!modal) {
       modal = document.createElement('div');
@@ -180,19 +225,52 @@ window.LedgerApp = {
     }
 
     modal.innerHTML = `
-      <div class="modal-content" style="max-width:680px; max-height:80vh; overflow-y:auto;">
-        <div class="modal-header">
-          <div style="display:flex; align-items:center; gap:8px;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-            <h3 class="modal-title">Search: "${q}"</h3>
+      <div class="modal-content" style="max-width:680px; max-height:85vh; max-height:85dvh; overflow-y:auto;">
+        <span class="modal-drag-handle"></span>
+        <div class="modal-header" style="flex-direction:column; align-items:stretch; gap:12px; padding-bottom:12px;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              <h3 class="modal-title">Search Records</h3>
+            </div>
+            <button class="modal-close" onclick="document.getElementById('global-search-modal').remove()">✕</button>
           </div>
-          <button class="modal-close" onclick="document.getElementById('global-search-modal').remove()">✕</button>
+          <div style="position:relative;">
+            <input type="text" id="modal-search-input" class="form-control" style="padding-left:36px;" placeholder="Search transactions, bills, goals, documents..." value="${trimmed}">
+            <svg style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted);" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          </div>
         </div>
-        <div class="modal-body" id="search-results-stream">
-          <div style="text-align:center; padding:20px; color:var(--brand-teal);">Searching your records across Ledger...</div>
+        <div class="modal-body" id="search-results-stream" style="padding-top:0;">
+          <div style="text-align:center; padding:20px; color:var(--brand-teal); font-size:13px;">${trimmed ? 'Searching your records across Ledger...' : 'Type above to search transactions, bills, goals, and vault...'}</div>
         </div>
       </div>
     `;
+
+    // Hook up real-time search on modal input
+    const modalInp = document.getElementById('modal-search-input');
+    if (modalInp) {
+      let debounce;
+      modalInp.oninput = (e) => {
+        clearTimeout(debounce);
+        debounce = setTimeout(() => {
+          this.executeSearchQuery(e.target.value.trim());
+        }, 300);
+      };
+    }
+
+    if (trimmed) {
+      this.executeSearchQuery(trimmed);
+    }
+  },
+
+  async executeSearchQuery(q) {
+    const stream = document.getElementById('search-results-stream');
+    if (!stream) return;
+    if (!q) {
+      stream.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted); font-size:13px;">Type above to search across Ledger records...</div>';
+      return;
+    }
+    stream.innerHTML = '<div style="text-align:center; padding:20px; color:var(--brand-teal); font-size:13px;">Searching your records...</div>';
 
     try {
       const res = await window.LedgerAPI.search(q);

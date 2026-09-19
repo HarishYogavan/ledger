@@ -1,0 +1,23 @@
+{
+  "short_name": "Ledger",
+  "name": "Ledger - Personal Financial OS",
+  "description": "Your Personal Financial Operating System. Record, Understand, Plan, Simulate, Improve.",
+  "icons": [
+    {
+      "src": "/static/icons/logo-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/static/icons/logo-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/#dashboard",
+  "background_color": "#070D1E",
+  "theme_color": "#070D1E",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "scope": "/"
+}

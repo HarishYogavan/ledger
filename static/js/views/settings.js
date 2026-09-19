@@ -28,7 +28,7 @@ window.LedgerViews.settings = {
           <div class="card">
             <h3 style="font-size:16px; margin-bottom:16px;">Profile & Account</h3>
             <form onsubmit="window.LedgerViews.settings.handleSaveProfile(event)">
-              <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+              <div class="responsive-form-grid">
                 <div class="form-group">
                   <label class="form-label">Full Name</label>
                   <input type="text" id="set-name" class="form-control" value="${u.full_name || ''}" required>
@@ -39,7 +39,7 @@ window.LedgerViews.settings = {
                 </div>
               </div>
 
-              <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+              <div class="responsive-form-grid">
                 <div class="form-group">
                   <label class="form-label">Primary Currency</label>
                   <select id="set-currency" class="form-control">
@@ -61,7 +61,7 @@ window.LedgerViews.settings = {
                 </div>
               </div>
 
-              <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+              <div class="responsive-form-grid">
                 <div class="form-group">
                   <label class="form-label">Monthly Income Baseline (${u.currency || '₹'})</label>
                   <input type="number" id="set-income" class="form-control" value="${u.monthly_income || 0}">
@@ -82,8 +82,8 @@ window.LedgerViews.settings = {
           <div class="card">
             <h3 style="font-size:16px; margin-bottom:14px;">Privacy & Discretion Controls</h3>
             
-            <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; background:var(--brand-surface); border-radius:var(--radius-md); margin-bottom:12px;">
-              <div>
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; padding:12px; background:var(--brand-surface); border-radius:var(--radius-md); margin-bottom:12px;">
+              <div style="flex:1; min-width:200px;">
                 <strong style="color:var(--text-primary);">Privacy Mode (Discretion Filter)</strong>
                 <p style="font-size:12px; color:var(--text-secondary); margin:2px 0 0 0;">Blurs all monetary values and account balances across the entire application.</p>
               </div>
@@ -92,12 +92,12 @@ window.LedgerViews.settings = {
               </button>
             </div>
 
-            <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; background:var(--brand-surface); border-radius:var(--radius-md); margin-bottom:12px;">
-              <div>
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; padding:12px; background:var(--brand-surface); border-radius:var(--radius-md); margin-bottom:12px;">
+              <div style="flex:1; min-width:200px;">
                 <strong style="color:var(--text-primary);">📍 Geolocation Tagging</strong>
                 <p style="font-size:12px; color:var(--text-secondary); margin:2px 0 0 0;">Automatically attach approximate location/city to transactions when recorded.</p>
               </div>
-              <div style="display:flex; gap:8px; align-items:center;">
+              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
                 <button class="btn ${s.location_tracking_enabled ? 'btn-primary' : 'btn-secondary'}" onclick="window.LedgerViews.settings.toggleLocationTracking(${!s.location_tracking_enabled})">
                   ${s.location_tracking_enabled ? 'Active' : 'Disabled'}
                 </button>
@@ -107,8 +107,8 @@ window.LedgerViews.settings = {
               </div>
             </div>
 
-            <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; background:var(--brand-surface); border-radius:var(--radius-md); margin-bottom:16px;">
-              <div>
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; padding:12px; background:var(--brand-surface); border-radius:var(--radius-md); margin-bottom:16px;">
+              <div style="flex:1; min-width:200px;">
                 <strong style="color:var(--text-primary);">🧠 AI Financial Memory</strong>
                 <p style="font-size:12px; color:var(--text-secondary); margin:2px 0 0 0;">Allow Ledger AI to recall financial facts and past goals during conversations.</p>
               </div>

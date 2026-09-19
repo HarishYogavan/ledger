@@ -27,7 +27,7 @@ window.LedgerViews.documents = {
       <div class="card" style="margin-bottom: 20px; padding: 14px 20px;">
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
           <!-- Category Pills -->
-          <div class="tab-pills" style="margin-bottom: 0;">
+          <div class="tab-pills tabs-scrollable" style="margin-bottom: 0; width: 100%;">
             ${['all', 'receipt', 'bill', 'statement', 'warranty', 'report'].map(cat => `
               <button class="tab-pill ${this.currentCategory === cat ? 'active' : ''}" onclick="window.LedgerViews.documents.filterCategory('${cat}')">
                 ${cat.charAt(0).toUpperCase() + cat.slice(1)}
@@ -36,7 +36,7 @@ window.LedgerViews.documents = {
           </div>
 
           <!-- Document Search Box -->
-          <div style="position: relative; min-width: 240px;">
+          <div style="position: relative; width: 100%;">
             <input type="text" id="doc-search-input" class="form-input" placeholder="Search filenames & notes..." value="${this.searchQuery}" oninput="window.LedgerViews.documents.handleSearch(event)">
           </div>
         </div>
@@ -87,7 +87,7 @@ window.LedgerViews.documents = {
       }
 
       stream.innerHTML = `
-        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 16px;">
           ${docs.map(d => {
             const kbSize = Math.round(d.file_size / 1024);
             const isPdf = d.mime_type.includes('pdf');

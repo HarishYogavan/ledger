@@ -24,7 +24,7 @@ window.LedgerViews.purchases = {
       </div>
 
       <!-- Tabbed Navigation -->
-      <div class="tab-pills" style="margin-bottom: 20px;">
+      <div class="tab-pills tabs-scrollable" style="margin-bottom: 20px;">
         <button class="tab-pill active" id="tab-btn-vault" onclick="window.LedgerViews.purchases.switchTab('vault')">
           Purchase & Warranty Vault
         </button>
@@ -104,7 +104,7 @@ window.LedgerViews.purchases = {
 
     container.innerHTML = `
       ${bannerHtml}
-      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px;">
+      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 16px;">
         ${purchases.map(p => {
           let badgeColor = 'var(--text-muted)';
           let badgeText = 'No Warranty';
@@ -176,7 +176,7 @@ window.LedgerViews.purchases = {
     }
 
     container.innerHTML = `
-      <div style="display: grid; grid-template-columns: 280px 1fr; gap: 20px;">
+      <div class="grid-sidebar-sm">
         <!-- Left: Product Switcher -->
         <div class="card" style="padding: 12px;">
           <h4 style="font-size: 12px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 10px;">Select Product</h4>

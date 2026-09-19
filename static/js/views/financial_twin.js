@@ -23,7 +23,7 @@ window.LedgerViews.financialTwin = {
       </div>
 
       <!-- Navigation Tabs -->
-      <div class="tab-pills" style="margin-bottom: 20px; overflow-x: auto;">
+      <div class="tab-pills tabs-scrollable" style="margin-bottom: 20px;">
         <button class="tab-pill ${this.activeTab==='scenarios'?'active':''}" onclick="window.LedgerViews.financialTwin.switchTab('scenarios')">
           What-If Scenarios
         </button>
@@ -101,7 +101,7 @@ window.LedgerViews.financialTwin = {
       container.innerHTML = `
         <div id="twin-delta-container"></div>
 
-        <div style="display:grid; grid-template-columns:320px 1fr; gap:20px;">
+        <div class="grid-sidebar-main">
           <!-- Controls -->
           <div>
             <div class="card" style="margin-bottom:16px;">
@@ -309,7 +309,7 @@ window.LedgerViews.financialTwin = {
   renderPurchaseAnalyzer(container) {
     const today = new Date().toISOString().split('T')[0];
     container.innerHTML = `
-      <div style="display:grid; grid-template-columns:360px 1fr; gap:20px;">
+      <div class="grid-sidebar-main">
         <div class="card">
           <h3 style="font-size:16px; margin-bottom:12px;">Analyze Planned Purchase</h3>
           <form onsubmit="window.LedgerViews.financialTwin.handleAnalyzePurchase(event)">
@@ -489,7 +489,7 @@ window.LedgerViews.financialTwin = {
     const curr = user.currency || '₹';
 
     container.innerHTML = `
-      <div style="display:grid; grid-template-columns:340px 1fr; gap:20px;">
+      <div class="grid-sidebar-main">
         <div class="card">
           <h3 style="font-size:16px; margin-bottom:12px;">Simulate Income Delta</h3>
           <p style="font-size:12px; color:var(--text-secondary); margin-bottom:14px;">
@@ -581,7 +581,7 @@ window.LedgerViews.financialTwin = {
             <button class="btn btn-primary" onclick="window.LedgerViews.financialTwin.openAddLifeEventModal()">+ Model First Event</button>
           </div>
         ` : `
-          <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:16px;">
+          <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap:16px;">
             ${events.map(ev => `
               <div class="card" style="display:flex; flex-direction:column; justify-content:space-between;">
                 <div>

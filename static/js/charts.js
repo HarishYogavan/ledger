@@ -1,12 +1,12 @@
 /**
  * LEDGER INTERACTIVE CHARTS
  * Pure HTML5 Canvas & SVG high-performance fintech charts with responsive scaling,
- * tooltips, and zero third-party dependencies.
+ * touch ergonomics, ResizeObserver adaptation, and zero third-party dependencies.
  */
 
 window.LedgerCharts = {
   /**
-   * Draws a multi-line or area cashflow trend chart
+   * Draws a multi-line or area cashflow trend chart with touch support and auto-resize
    */
   renderCashflowChart(containerId, data, currency = '₹') {
     const container = document.getElementById(containerId);
@@ -21,38 +21,47 @@ window.LedgerCharts = {
     }
 
     container.innerHTML = `
-      <canvas id="${containerId}-canvas" style="width: 100%; height: 100%;"></canvas>
-      <div id="${containerId}-tooltip" class="chart-tooltip"></div>
+      <div style="position:relative; width:100%; height:100%; min-height:220px;">
+        <canvas id="${containerId}-canvas" style="width:100%; height:100%; display:block;"></canvas>
+        <div id="${containerId}-tooltip" class="chart-tooltip"></div>
+      </div>
     `;
 
     const canvas = document.getElementById(`${containerId}-canvas`);
     const tooltip = document.getElementById(`${containerId}-tooltip`);
+    if (!canvas || !tooltip) return;
     const ctx = canvas.getContext('2d');
 
     const dpr = window.devicePixelRatio || 1;
     const rect = container.getBoundingClientRect();
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
+    const width = (rect.width > 20 ? rect.width : (container.clientWidth || 320));
+    const height = (rect.height > 20 ? rect.height : (container.clientHeight || 220));
+
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
     ctx.scale(dpr, dpr);
 
-    const width = rect.width;
-    const height = rect.height;
-    const padding = { top: 20, right: 20, bottom: 40, left: 50 };
+    // Padding responsive for mobile vs desktop
+    const isMobile = width < 480;
+    const padding = {
+      top: 20,
+      right: isMobile ? 12 : 24,
+      bottom: 36,
+      left: isMobile ? 38 : 50
+    };
 
     const maxVal = Math.max(...data.map(d => Math.max(d.income || 0, d.expense || 0, 1000)));
-    const minVal = 0;
+    const plotW = Math.max(width - padding.left - padding.right, 20);
+    const plotH = Math.max(height - padding.top - padding.bottom, 20);
 
-    const plotW = width - padding.left - padding.right;
-    const plotH = height - padding.top - padding.bottom;
-
-    // Clear
+    // Clear canvas
     ctx.clearRect(0, 0, width, height);
 
     // Draw Grid Lines
     ctx.strokeStyle = 'rgba(45, 68, 108, 0.3)';
     ctx.lineWidth = 1;
     ctx.fillStyle = '#64748B';
-    ctx.font = '10px Inter, sans-serif';
+    ctx.font = `${isMobile ? '9px' : '10px'} Inter, sans-serif`;
 
     const ySteps = 4;
     for (let i = 0; i <= ySteps; i++) {
@@ -62,7 +71,8 @@ window.LedgerCharts = {
       ctx.moveTo(padding.left, y);
       ctx.lineTo(width - padding.right, y);
       ctx.stroke();
-      ctx.fillText(`${currency}${val >= 1000 ? (val / 1000).toFixed(0) + 'k' : val}`, 10, y + 3);
+      const labelStr = `${currency}${val >= 1000 ? (val / 1000).toFixed(0) + 'k' : val}`;
+      ctx.fillText(labelStr, 4, y + 3);
     }
 
     // Coordinates calculation
@@ -78,16 +88,17 @@ window.LedgerCharts = {
       pointsIncome.push({ x, y: yInc, val: d.income, label: d.month || d.label });
       pointsExpense.push({ x, y: yExp, val: d.expense, label: d.month || d.label });
 
-      // X-axis label
-      ctx.fillStyle = '#94A3B8';
-      ctx.textAlign = 'center';
-      ctx.fillText(d.month || d.label, x, height - 12);
+      // X-axis label (stagger if on very small screen)
+      if (!isMobile || idx % 2 === 0 || idx === data.length - 1) {
+        ctx.fillStyle = '#94A3B8';
+        ctx.textAlign = 'center';
+        ctx.fillText(d.month || d.label, x, height - 10);
+      }
     });
 
-    // Draw Line & Area Helper
+    // Draw Series Line & Gradient Area
     function drawSeries(points, strokeColor, fillColor) {
       if (points.length === 0) return;
-      // Gradient fill
       const grad = ctx.createLinearGradient(0, padding.top, 0, padding.top + plotH);
       grad.addColorStop(0, fillColor);
       grad.addColorStop(1, 'rgba(0,0,0,0)');
@@ -100,7 +111,7 @@ window.LedgerCharts = {
       ctx.fillStyle = grad;
       ctx.fill();
 
-      // Stroke
+      // Line
       ctx.beginPath();
       ctx.moveTo(points[0].x, points[0].y);
       for (let i = 1; i < points.length; i++) {
@@ -110,29 +121,27 @@ window.LedgerCharts = {
       ctx.lineWidth = 2.5;
       ctx.stroke();
 
-      // Dots
+      // Point dots
       points.forEach(p => {
         ctx.beginPath();
-        ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+        ctx.arc(p.x, p.y, isMobile ? 3 : 4, 0, Math.PI * 2);
         ctx.fillStyle = strokeColor;
         ctx.fill();
-        ctx.strokeStyle = '#0A1226';
+        ctx.strokeStyle = '#070D1E';
         ctx.lineWidth = 2;
         ctx.stroke();
       });
     }
 
-    // Draw Income (Teal)
+    // Draw Income (Teal) and Expense (Red)
     drawSeries(pointsIncome, '#06D6A0', 'rgba(6, 214, 160, 0.18)');
-    // Draw Expense (Coral/Red)
     drawSeries(pointsExpense, '#EF476F', 'rgba(239, 71, 111, 0.15)');
 
-    // Hover Tooltip Interaction
-    canvas.onmousemove = (e) => {
+    // Hover & Touch Tooltip Interaction
+    const showTooltipAt = (clientX) => {
       const cRect = canvas.getBoundingClientRect();
-      const mouseX = e.clientX - cRect.left;
+      const mouseX = clientX - cRect.left;
 
-      // Find closest point
       let closestIdx = 0;
       let closestDist = 9999;
       pointsIncome.forEach((p, idx) => {
@@ -143,26 +152,49 @@ window.LedgerCharts = {
         }
       });
 
-      if (closestDist < 40) {
+      if (closestDist < (isMobile ? 50 : 40)) {
         const inc = pointsIncome[closestIdx];
         const exp = pointsExpense[closestIdx];
         tooltip.style.display = 'block';
-        tooltip.style.left = `${inc.x}px`;
-        tooltip.style.top = `${Math.min(inc.y, exp.y)}px`;
+        tooltip.style.left = `${Math.min(Math.max(inc.x, 80), width - 80)}px`;
+        tooltip.style.top = `${Math.max(Math.min(inc.y, exp.y) - 10, 10)}px`;
         tooltip.innerHTML = `
           <strong>${inc.label}</strong><br>
-          <span style="color:#06D6A0">● Income: ${currency}${inc.val.toLocaleString()}</span><br>
-          <span style="color:#EF476F">● Expense: ${currency}${exp.val.toLocaleString()}</span><br>
-          <span style="color:#F8FAFC">Net: ${currency}${(inc.val - exp.val).toLocaleString()}</span>
+          <span style="color:#06D6A0">● Income: ${currency}${(inc.val || 0).toLocaleString()}</span><br>
+          <span style="color:#EF476F">● Expense: ${currency}${(exp.val || 0).toLocaleString()}</span><br>
+          <span style="color:#F8FAFC">Net: ${currency}${((inc.val || 0) - (exp.val || 0)).toLocaleString()}</span>
         `;
       } else {
         tooltip.style.display = 'none';
       }
     };
 
-    canvas.onmouseleave = () => {
-      tooltip.style.display = 'none';
+    canvas.onmousemove = (e) => showTooltipAt(e.clientX);
+    canvas.ontouchstart = (e) => {
+      if (e.touches.length > 0) showTooltipAt(e.touches[0].clientX);
     };
+    canvas.ontouchmove = (e) => {
+      if (e.touches.length > 0) showTooltipAt(e.touches[0].clientX);
+    };
+    canvas.onmouseleave = () => { tooltip.style.display = 'none'; };
+    canvas.ontouchend = () => {
+      setTimeout(() => { tooltip.style.display = 'none'; }, 2500);
+    };
+
+    // Auto-re-render on container resize
+    if (!container._resizeBound && window.ResizeObserver) {
+      container._resizeBound = true;
+      let resizeTimer;
+      const ro = new ResizeObserver(() => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+          if (container.offsetWidth > 20) {
+            window.LedgerCharts.renderCashflowChart(containerId, data, currency);
+          }
+        }, 150);
+      });
+      ro.observe(container);
+    }
   },
 
   /**
@@ -221,26 +253,26 @@ window.LedgerCharts = {
     const legendItems = slices.slice(0, 5).map(s => `
       <div style="display:flex; align-items:center; justify-content:space-between; font-size:12px; margin-bottom:6px;">
         <span style="display:flex; align-items:center; gap:6px; color:var(--text-secondary);">
-          <span style="width:8px; height:8px; border-radius:50%; background:${s.color};"></span>
-          ${s.name}
+          <span style="width:8px; height:8px; border-radius:50%; background:${s.color}; flex-shrink:0;"></span>
+          <span style="max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${s.name}</span>
         </span>
-        <strong style="color:var(--text-primary);">${s.percent}%</strong>
+        <strong style="color:var(--text-primary); font-size:12px;">${s.percent}%</strong>
       </div>
     `).join('');
 
     container.innerHTML = `
-      <div style="display:flex; align-items:center; gap:24px; justify-content:center; flex-wrap:wrap;">
-        <div style="position:relative; width:160px; height:160px;">
+      <div style="display:flex; align-items:center; gap:16px; justify-content:center; flex-wrap:wrap;">
+        <div style="position:relative; width:150px; height:150px; flex-shrink:0;">
           <svg viewBox="0 0 100 100" style="width:100%; height:100%; border-radius:50%;">
             ${svgSlices}
             <circle cx="50" cy="50" r="24" fill="var(--brand-navy)"></circle>
           </svg>
           <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); text-align:center;">
-            <span style="font-size:10px; color:var(--text-muted); text-transform:uppercase;">Total</span>
-            <div style="font-size:13px; font-weight:700; color:var(--text-primary);">${currency}${total >= 1000 ? (total/1000).toFixed(1)+'k' : total.toFixed(0)}</div>
+            <span style="font-size:9px; color:var(--text-muted); text-transform:uppercase; display:block;">Total</span>
+            <div style="font-size:12px; font-weight:700; color:var(--text-primary);">${currency}${total >= 1000 ? (total/1000).toFixed(1)+'k' : total.toFixed(0)}</div>
           </div>
         </div>
-        <div style="flex:1; min-width:180px;">
+        <div style="flex:1; min-width:140px;">
           ${legendItems}
         </div>
       </div>
@@ -255,23 +287,33 @@ window.LedgerCharts = {
     if (!container) return;
 
     container.innerHTML = `
-      <canvas id="${containerId}-canvas" style="width: 100%; height: 100%;"></canvas>
-      <div id="${containerId}-tooltip" class="chart-tooltip"></div>
+      <div style="position:relative; width:100%; height:100%; min-height:240px;">
+        <canvas id="${containerId}-canvas" style="width:100%; height:100%; display:block;"></canvas>
+        <div id="${containerId}-tooltip" class="chart-tooltip"></div>
+      </div>
     `;
 
     const canvas = document.getElementById(`${containerId}-canvas`);
     const tooltip = document.getElementById(`${containerId}-tooltip`);
+    if (!canvas || !tooltip) return;
     const ctx = canvas.getContext('2d');
 
     const dpr = window.devicePixelRatio || 1;
     const rect = container.getBoundingClientRect();
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
+    const width = (rect.width > 20 ? rect.width : (container.clientWidth || 320));
+    const height = (rect.height > 20 ? rect.height : (container.clientHeight || 240));
+
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
     ctx.scale(dpr, dpr);
 
-    const width = rect.width;
-    const height = rect.height;
-    const padding = { top: 20, right: 30, bottom: 40, left: 60 };
+    const isMobile = width < 480;
+    const padding = {
+      top: 20,
+      right: isMobile ? 14 : 26,
+      bottom: 36,
+      left: isMobile ? 40 : 60
+    };
 
     const allBalances = [
       ...baselineTimeline.map(b => b.cumulative_balance),
@@ -282,8 +324,8 @@ window.LedgerCharts = {
     const minVal = Math.min(0, ...allBalances);
     const range = (maxVal - minVal) || 1;
 
-    const plotW = width - padding.left - padding.right;
-    const plotH = height - padding.top - padding.bottom;
+    const plotW = Math.max(width - padding.left - padding.right, 20);
+    const plotH = Math.max(height - padding.top - padding.bottom, 20);
 
     ctx.clearRect(0, 0, width, height);
 
@@ -291,7 +333,7 @@ window.LedgerCharts = {
     ctx.strokeStyle = 'rgba(45, 68, 108, 0.3)';
     ctx.lineWidth = 1;
     ctx.fillStyle = '#64748B';
-    ctx.font = '10px Inter, sans-serif';
+    ctx.font = `${isMobile ? '9px' : '10px'} Inter, sans-serif`;
 
     for (let i = 0; i <= 4; i++) {
       const y = padding.top + (plotH / 4) * i;
@@ -300,7 +342,7 @@ window.LedgerCharts = {
       ctx.moveTo(padding.left, y);
       ctx.lineTo(width - padding.right, y);
       ctx.stroke();
-      ctx.fillText(`${currency}${val >= 1000 ? (val / 1000).toFixed(0) + 'k' : val}`, 10, y + 3);
+      ctx.fillText(`${currency}${val >= 1000 ? (val / 1000).toFixed(0) + 'k' : val}`, 4, y + 3);
     }
 
     const stepX = plotW / (baselineTimeline.length - 1 || 1);
@@ -316,47 +358,50 @@ window.LedgerCharts = {
       const yS = padding.top + plotH - ((s.cumulative_balance - minVal) / range) * plotH;
       simPts.push({ x, y: yS, val: s.cumulative_balance, label: s.label });
 
-      ctx.fillStyle = '#94A3B8';
-      ctx.textAlign = 'center';
-      if (idx % 2 === 0 || idx === baselineTimeline.length - 1) {
-        ctx.fillText(b.label, x, height - 12);
+      if (!isMobile || idx % 2 === 0 || idx === baselineTimeline.length - 1) {
+        ctx.fillStyle = '#94A3B8';
+        ctx.textAlign = 'center';
+        ctx.fillText(b.label, x, height - 10);
       }
     });
 
     // Draw Baseline (Dashed Slate)
-    ctx.setLineDash([5, 5]);
-    ctx.beginPath();
-    ctx.moveTo(basePts[0].x, basePts[0].y);
-    for (let i = 1; i < basePts.length; i++) {
-      ctx.lineTo(basePts[i].x, basePts[i].y);
+    if (basePts.length > 0) {
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath();
+      ctx.moveTo(basePts[0].x, basePts[0].y);
+      for (let i = 1; i < basePts.length; i++) {
+        ctx.lineTo(basePts[i].x, basePts[i].y);
+      }
+      ctx.strokeStyle = '#64748B';
+      ctx.lineWidth = 2;
+      ctx.stroke();
     }
-    ctx.strokeStyle = '#64748B';
-    ctx.lineWidth = 2;
-    ctx.stroke();
 
     // Draw Simulated (Solid Glowing Cyan/Teal)
-    ctx.setLineDash([]);
-    ctx.beginPath();
-    ctx.moveTo(simPts[0].x, simPts[0].y);
-    for (let i = 1; i < simPts.length; i++) {
-      ctx.lineTo(simPts[i].x, simPts[i].y);
-    }
-    ctx.strokeStyle = '#00F5D4';
-    ctx.lineWidth = 3;
-    ctx.stroke();
-
-    // Dots for simulation
-    simPts.forEach(p => {
+    if (simPts.length > 0) {
+      ctx.setLineDash([]);
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
-      ctx.fillStyle = '#00F5D4';
-      ctx.fill();
-    });
+      ctx.moveTo(simPts[0].x, simPts[0].y);
+      for (let i = 1; i < simPts.length; i++) {
+        ctx.lineTo(simPts[i].x, simPts[i].y);
+      }
+      ctx.strokeStyle = '#00F5D4';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
 
-    // Hover tooltip
-    canvas.onmousemove = (e) => {
+      simPts.forEach(p => {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, isMobile ? 3 : 4, 0, Math.PI * 2);
+        ctx.fillStyle = '#00F5D4';
+        ctx.fill();
+      });
+    }
+
+    // Hover & Touch tooltip
+    const showTwinTooltip = (clientX) => {
       const cRect = canvas.getBoundingClientRect();
-      const mouseX = e.clientX - cRect.left;
+      const mouseX = clientX - cRect.left;
 
       let closestIdx = 0;
       let closestDist = 9999;
@@ -368,13 +413,13 @@ window.LedgerCharts = {
         }
       });
 
-      if (closestDist < 30) {
+      if (closestDist < (isMobile ? 50 : 30)) {
         const s = simPts[closestIdx];
         const b = basePts[closestIdx];
         const diff = s.val - b.val;
         tooltip.style.display = 'block';
-        tooltip.style.left = `${s.x}px`;
-        tooltip.style.top = `${Math.min(s.y, b.y)}px`;
+        tooltip.style.left = `${Math.min(Math.max(s.x, 90), width - 90)}px`;
+        tooltip.style.top = `${Math.max(Math.min(s.y, b.y) - 10, 10)}px`;
         tooltip.innerHTML = `
           <strong>${s.label}</strong><br>
           <span style="color:#64748B">Baseline: ${currency}${b.val.toLocaleString()}</span><br>
@@ -388,8 +433,30 @@ window.LedgerCharts = {
       }
     };
 
-    canvas.onmouseleave = () => {
-      tooltip.style.display = 'none';
+    canvas.onmousemove = (e) => showTwinTooltip(e.clientX);
+    canvas.ontouchstart = (e) => {
+      if (e.touches.length > 0) showTwinTooltip(e.touches[0].clientX);
     };
+    canvas.ontouchmove = (e) => {
+      if (e.touches.length > 0) showTwinTooltip(e.touches[0].clientX);
+    };
+    canvas.onmouseleave = () => { tooltip.style.display = 'none'; };
+    canvas.ontouchend = () => {
+      setTimeout(() => { tooltip.style.display = 'none'; }, 2500);
+    };
+
+    if (!container._resizeBound && window.ResizeObserver) {
+      container._resizeBound = true;
+      let resizeTimer;
+      const ro = new ResizeObserver(() => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+          if (container.offsetWidth > 20) {
+            window.LedgerCharts.renderTwinComparisonChart(containerId, baselineTimeline, simulatedTimeline, currency);
+          }
+        }, 150);
+      });
+      ro.observe(container);
+    }
   }
 };

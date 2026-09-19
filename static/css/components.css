@@ -375,6 +375,41 @@
 .event-expense { background: rgba(239, 71, 111, 0.2); color: var(--brand-danger); }
 .event-bill { background: rgba(255, 209, 102, 0.2); color: var(--brand-amber); }
 
+.cal-dots-container {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .calendar-cell {
+    min-height: 52px;
+    padding: 6px 2px;
+    align-items: center;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+  }
+  .cal-date-number {
+    font-size: 11px;
+    line-height: 1;
+    text-align: center;
+  }
+  .calendar-day-header {
+    font-size: 11px;
+    padding: 4px 0;
+  }
+  .cal-event-pill {
+    display: none !important;
+  }
+  .cal-dots-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 3px;
+    margin-top: 4px;
+    flex-wrap: wrap;
+    max-width: 100%;
+  }
+}
+
 /* Quick Add Drawer / Modal Tabs */
 .quick-add-tabs {
   display: flex;
@@ -464,3 +499,282 @@
   background: var(--brand-teal);
   border: 2px solid var(--brand-navy);
 }
+
+/* Scrollable Tab Pills on Mobile */
+.tabs-scrollable {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  white-space: nowrap;
+  padding-bottom: 4px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.tabs-scrollable::-webkit-scrollbar {
+  display: none;
+}
+
+/* Mobile Transaction Card Row */
+.tx-mobile-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tx-mobile-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background: var(--brand-surface);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--brand-border-subtle);
+  transition: all var(--transition-fast);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tx-mobile-card:active {
+  background: var(--brand-surface-elevated);
+  transform: scale(0.99);
+}
+
+.tx-mobile-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.tx-mobile-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.tx-mobile-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.tx-mobile-merchant {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tx-mobile-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tx-mobile-amount {
+  font-size: 15px;
+  font-weight: 700;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* Responsive Table Wrapper */
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Mobile More Hub */
+.more-hub-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.more-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--brand-teal);
+  margin-bottom: 10px;
+}
+
+.more-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 10px;
+}
+
+@media (max-width: 480px) {
+  .more-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.more-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 16px 10px;
+  background: var(--brand-surface);
+  border: 1px solid var(--brand-border);
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  color: var(--text-primary);
+  transition: all var(--transition-fast);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.more-tile:active {
+  background: var(--brand-surface-elevated);
+  border-color: var(--brand-teal);
+  transform: scale(0.97);
+}
+
+.more-tile-icon {
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+
+.more-tile-label {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.more-tile-desc {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* Camera Receipt Scanner */
+.receipt-scanner-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.receipt-preview-img {
+  width: 100%;
+  max-height: 240px;
+  object-fit: contain;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--brand-border);
+  background: #000;
+}
+
+/* Calendar Event Dot on Mobile */
+.cal-event-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+/* Quick Add Responsive Grid */
+.qa-grid-responsive {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 540px) {
+  .qa-grid-responsive {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+}
+
+/* Type Segmented Control */
+.type-segmented-control {
+  display: flex;
+  background: var(--brand-surface);
+  border: 1px solid var(--brand-border);
+  border-radius: var(--radius-md);
+  padding: 4px;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+.type-segmented-control label {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 11px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-secondary);
+  transition: all var(--transition-fast);
+  user-select: none;
+  margin-bottom: 0;
+  border: 1px solid transparent;
+}
+.type-segmented-control input[type="radio"] {
+  display: none;
+}
+.type-segmented-control label.active-expense {
+  background: rgba(239, 71, 111, 0.18);
+  color: var(--brand-danger);
+  border-color: var(--brand-danger);
+}
+.type-segmented-control label.active-income {
+  background: rgba(6, 214, 160, 0.18);
+  color: var(--brand-teal);
+  border-color: var(--brand-teal);
+}
+
+/* Responsive Two-Column Sidebars */
+.grid-sidebar-main {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 20px;
+}
+@media (max-width: 860px) {
+  .grid-sidebar-main {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+}
+
+.grid-sidebar-sm {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 20px;
+}
+@media (max-width: 860px) {
+  .grid-sidebar-sm {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+}
+
+.responsive-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+@media (max-width: 600px) {
+  .responsive-form-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+

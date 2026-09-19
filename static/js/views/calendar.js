@@ -79,6 +79,7 @@ window.LedgerViews.calendar = {
         title: t.merchant || 'Transaction',
         amount: t.amount,
         pillClass: t.type === 'income' ? 'event-income' : 'event-expense',
+        dotColor: t.type === 'income' ? 'var(--brand-teal)' : 'var(--brand-danger)',
         details: `${t.category_name || 'General'} • ${curr}${t.amount}`
       });
     });
@@ -96,6 +97,7 @@ window.LedgerViews.calendar = {
         title: `Bill: ${b.title}`,
         amount: b.amount,
         pillClass: b.is_paid ? 'event-income' : (isOverdue ? 'event-expense' : 'event-bill'),
+        dotColor: b.is_paid ? 'var(--brand-teal)' : (isOverdue ? 'var(--brand-danger)' : 'var(--brand-amber)'),
         details: `${b.category || 'Bill'} • ${curr}${b.amount} ${b.is_paid ? '(Paid)' : (isOverdue ? '(OVERDUE)' : '')}`
       });
     });
@@ -110,6 +112,7 @@ window.LedgerViews.calendar = {
           title: `Sub: ${r.name}`,
           amount: r.amount,
           pillClass: 'event-bill',
+          dotColor: 'var(--brand-amber)',
           details: `Subscription • ${curr}${r.amount}`
         });
       }
@@ -125,6 +128,7 @@ window.LedgerViews.calendar = {
           title: `🎯 Goal: ${g.name}`,
           amount: g.target_amount,
           pillClass: 'event-income',
+          dotColor: 'var(--brand-teal)',
           details: `Target: ${curr}${g.target_amount} (Current: ${curr}${g.current_amount})`
         });
       }
@@ -140,6 +144,7 @@ window.LedgerViews.calendar = {
           title: `🛒 Plan: ${p.product_name}`,
           amount: p.price,
           pillClass: 'event-bill',
+          dotColor: 'var(--brand-blue)',
           details: `Planned Purchase: ${curr}${p.price}`
         });
       }
@@ -152,6 +157,7 @@ window.LedgerViews.calendar = {
           title: `🛡️ Exp: ${p.product_name}`,
           amount: 0,
           pillClass: isExpiring ? 'event-expense' : 'event-bill',
+          dotColor: isExpiring ? 'var(--brand-danger)' : 'var(--brand-blue)',
           details: `Warranty Expiration for ${p.product_name}`
         });
       }
@@ -191,22 +197,30 @@ window.LedgerViews.calendar = {
           <div class="calendar-cell ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''}" 
                style="${isSelected ? 'border-color:var(--brand-teal); box-shadow:0 0 10px rgba(6,214,160,0.25);' : ''}"
                onclick="window.LedgerViews.calendar.selectDate('${dateStr}')">
-            <div class="cal-date-number" style="display:flex; justify-content:space-between; align-items:center;">
+            <div class="cal-date-number" style="display:flex; justify-content:space-between; align-items:center; width:100%;">
               <span>${day}</span>
               ${dayEvents.some(e => e.isOverdue) ? '<span style="font-size:10px; color:var(--brand-danger);" title="Overdue bill">⚠️</span>' : ''}
             </div>
+            
+            <!-- Mobile compact colored dots -->
+            <div class="cal-dots-container">
+              ${dayEvents.slice(0, 3).map(ev => `<span class="cal-event-dot" style="background:${ev.dotColor || 'var(--brand-teal)'};"></span>`).join('')}
+              ${dayEvents.length > 3 ? `<span style="font-size:8px; color:var(--brand-teal); font-weight:700;">+</span>` : ''}
+            </div>
+
+            <!-- Desktop full text pills -->
             ${dayEvents.slice(0, 3).map(ev => `
               <div class="cal-event-pill ${ev.pillClass}" title="${ev.title}: ${ev.amount ? curr + ev.amount : ''}">
                 ${ev.title}
               </div>
             `).join('')}
-            ${dayEvents.length > 3 ? `<div style="font-size:9px; color:var(--brand-teal); font-weight:600;">+${dayEvents.length - 3} more</div>` : ''}
+            ${dayEvents.length > 3 ? `<div class="desktop-only" style="font-size:9px; color:var(--brand-teal); font-weight:600;">+${dayEvents.length - 3} more</div>` : ''}
           </div>
         `;
       }
 
       viewContentHtml = `
-        <div class="card" style="padding:20px;">
+        <div class="card" style="padding:16px;">
           <div class="calendar-grid" style="margin-bottom:8px;">
             <div class="calendar-day-header">Sun</div>
             <div class="calendar-day-header">Mon</div>
@@ -264,7 +278,7 @@ window.LedgerViews.calendar = {
       });
 
       viewContentHtml = `
-        <div style="display:grid; grid-template-columns:repeat(7, 1fr); gap:10px;">
+        <div style="display:grid; grid-template-columns:repeat(7, minmax(110px, 1fr)); gap:10px; overflow-x:auto; padding-bottom:10px; -webkit-overflow-scrolling:touch;">
           ${weekColsHtml}
         </div>
       `;
@@ -386,12 +400,12 @@ window.LedgerViews.calendar = {
       </div>
 
       <!-- Filter chips -->
-      <div style="display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap;">
-        <button class="btn ${this.filterType === 'all' ? 'btn-primary' : 'btn-secondary'}" style="font-size:12px; padding:4px 10px;" onclick="window.LedgerViews.calendar.setFilter('all')">All Events</button>
-        <button class="btn ${this.filterType === 'bills' ? 'btn-primary' : 'btn-secondary'}" style="font-size:12px; padding:4px 10px;" onclick="window.LedgerViews.calendar.setFilter('bills')">Bills & Subs</button>
-        <button class="btn ${this.filterType === 'income' ? 'btn-primary' : 'btn-secondary'}" style="font-size:12px; padding:4px 10px;" onclick="window.LedgerViews.calendar.setFilter('income')">Income</button>
-        <button class="btn ${this.filterType === 'expenses' ? 'btn-primary' : 'btn-secondary'}" style="font-size:12px; padding:4px 10px;" onclick="window.LedgerViews.calendar.setFilter('expenses')">Expenses</button>
-        <button class="btn ${this.filterType === 'warranties' ? 'btn-primary' : 'btn-secondary'}" style="font-size:12px; padding:4px 10px;" onclick="window.LedgerViews.calendar.setFilter('warranties')">Warranties & Goals</button>
+      <div class="tabs-scrollable" style="display:flex; gap:8px; margin-bottom:16px; padding-bottom:4px;">
+        <button class="btn ${this.filterType === 'all' ? 'btn-primary' : 'btn-secondary'}" style="font-size:12px; padding:6px 12px; white-space:nowrap;" onclick="window.LedgerViews.calendar.setFilter('all')">All Events</button>
+        <button class="btn ${this.filterType === 'bills' ? 'btn-primary' : 'btn-secondary'}" style="font-size:12px; padding:6px 12px; white-space:nowrap;" onclick="window.LedgerViews.calendar.setFilter('bills')">Bills & Subs</button>
+        <button class="btn ${this.filterType === 'income' ? 'btn-primary' : 'btn-secondary'}" style="font-size:12px; padding:6px 12px; white-space:nowrap;" onclick="window.LedgerViews.calendar.setFilter('income')">Income</button>
+        <button class="btn ${this.filterType === 'expenses' ? 'btn-primary' : 'btn-secondary'}" style="font-size:12px; padding:6px 12px; white-space:nowrap;" onclick="window.LedgerViews.calendar.setFilter('expenses')">Expenses</button>
+        <button class="btn ${this.filterType === 'warranties' ? 'btn-primary' : 'btn-secondary'}" style="font-size:12px; padding:6px 12px; white-space:nowrap;" onclick="window.LedgerViews.calendar.setFilter('warranties')">Warranties & Goals</button>
       </div>
 
       <!-- Main View Content -->
