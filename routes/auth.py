@@ -101,9 +101,9 @@ def logout():
     user_id = session.get("user_id")
 
     if not current_session_id:
-        auth_header = request.headers.get("Authorization")
-        if auth_header and auth_header.startswith("Bearer "):
-            jwt_res = verify_jwt(auth_header.split(" ")[1])
+        token = extract_token_from_request(request)
+        if token:
+            jwt_res = verify_jwt(token)
             if jwt_res:
                 user_id, current_session_id = jwt_res
 

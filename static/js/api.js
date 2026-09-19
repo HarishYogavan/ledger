@@ -21,6 +21,7 @@ window.LedgerAPI = {
 
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
+      headers['X-Auth-Token'] = token;
     }
 
     if (!(options.body instanceof FormData) && !headers['Content-Type']) {

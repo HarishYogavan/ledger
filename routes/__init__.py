@@ -1,7 +1,7 @@
 from functools import wraps
 from flask import session, request, jsonify
 from models import db, User
-from services.auth_service import verify_jwt, validate_user_session
+from services.auth_service import verify_jwt, validate_user_session, extract_token_from_request
 
 def login_required(f):
     @wraps(f)
@@ -9,10 +9,9 @@ def login_required(f):
         user_id = None
         session_id = None
 
-        # 1. Authorization: Bearer <token> takes precedence
-        auth_header = request.headers.get("Authorization")
-        if auth_header and auth_header.startswith("Bearer "):
-            token = auth_header.split(" ")[1]
+        # 1. Authorization: Bearer, X-Auth-Token, or WSGI environ
+        token = extract_token_from_request(request)
+        if token:
             jwt_res = verify_jwt(token)
             if jwt_res:
                 user_id, session_id = jwt_res

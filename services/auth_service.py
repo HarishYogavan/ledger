@@ -102,6 +102,22 @@ def generate_jwt(user_id: int, session_id: int | None = None) -> str:
     }
     return jwt.encode(payload, Config.SECRET_KEY, algorithm="HS256")
 
+def extract_token_from_request(req) -> str | None:
+    """Extract auth token from Authorization (Bearer), WSGI environ, X-Auth-Token, or X-Session-Token."""
+    auth_header = (
+        req.headers.get("Authorization")
+        or req.environ.get("HTTP_AUTHORIZATION")
+        or req.headers.get("X-Authorization")
+        or req.headers.get("X-Auth-Token")
+        or req.headers.get("X-Session-Token")
+    )
+    if not auth_header:
+        return None
+    auth_str = str(auth_header).strip()
+    if auth_str.lower().startswith("bearer "):
+        return auth_str[7:].strip()
+    return auth_str
+
 def verify_jwt(token: str) -> tuple[int, int | None] | None:
     """Verifies JWT signature and returns (user_id, session_id)."""
     try:
