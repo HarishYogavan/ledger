@@ -136,3 +136,120 @@ def test_protected_ui_routes_and_error_handling(client):
     })
     assert no_user.status_code == 401
     assert "error" in no_user.get_json()
+
+def test_signup_comprehensive_flow(client):
+    from models import db, User, UserSession
+    from unittest.mock import patch
+    from sqlalchemy.exc import IntegrityError
+
+    # 1. Successful account creation
+    email = "new_signup_flow@ledger.finance"
+    res = client.post("/api/auth/register", json={
+        "full_name": "Alexander Hamilton",
+        "email": email,
+        "password": "SecurePassword123!",
+        "currency": "₹"
+    })
+    assert res.status_code == 201
+    data = res.get_json()
+    assert "token" in data
+    assert "session_id" in data
+    assert data["user"]["email"] == email
+    user_id = data["user"]["id"]
+    token = data["token"]
+
+    # Database confirmation
+    u = db.session.get(User, user_id)
+    assert u is not None
+    assert u.email == email
+
+    # Session confirmation
+    s = db.session.get(UserSession, data["session_id"])
+    assert s is not None
+    assert s.is_active is True
+
+    # Immediate access to me and dashboard overview
+    auth_headers = {"Authorization": f"Bearer {token}"}
+    me_res = client.get("/api/auth/me", headers=auth_headers)
+    assert me_res.status_code == 200
+    assert me_res.get_json()["authenticated"] is True
+
+    overview_res = client.get("/api/dashboard/overview", headers=auth_headers)
+    assert overview_res.status_code == 200
+
+    # 2. Duplicate email rejection
+    dup_res = client.post("/api/auth/register", json={
+        "full_name": "Duplicate User",
+        "email": email,
+        "password": "SecurePassword123!"
+    })
+    assert dup_res.status_code == 409
+    assert "already exists" in dup_res.get_json()["error"].lower()
+
+    # 3. Validation: invalid email
+    bad_email_res = client.post("/api/auth/register", json={
+        "full_name": "Bad Email User",
+        "email": "invalid-email-address",
+        "password": "SecurePassword123!"
+    })
+    assert bad_email_res.status_code == 400
+    assert "valid email" in bad_email_res.get_json()["error"].lower()
+
+    # 4. Validation: password < 8 chars
+    short_pwd_res = client.post("/api/auth/register", json={
+        "full_name": "Short Pwd User",
+        "email": "shortpwd@ledger.finance",
+        "password": "12345"
+    })
+    assert short_pwd_res.status_code == 400
+    assert "8 characters" in short_pwd_res.get_json()["error"].lower()
+
+    # 5. Validation: missing name
+    missing_name_res = client.post("/api/auth/register", json={
+        "full_name": "",
+        "email": "missingname@ledger.finance",
+        "password": "SecurePassword123!"
+    })
+    assert missing_name_res.status_code == 400
+    assert "required" in missing_name_res.get_json()["error"].lower()
+
+    # 6. Database concurrency IntegrityError rollback handling
+    original_commit = db.session.commit
+    call_count = [0]
+
+    def mock_commit():
+        call_count[0] += 1
+        if call_count[0] == 1:
+            raise IntegrityError("mock race violation", {}, None)
+        return original_commit()
+
+    with patch.object(db.session, "commit", side_effect=mock_commit):
+        race_res = client.post("/api/auth/register", json={
+            "full_name": "Race Condition User",
+            "email": "race@ledger.finance",
+            "password": "SecurePassword123!"
+        })
+        assert race_res.status_code == 409
+        assert "already exists" in race_res.get_json()["error"].lower()
+
+    # 7. Verification that register.html contains all required elements
+    with client.session_transaction() as sess:
+        sess.clear()
+    page_res = client.get("/register")
+    assert page_res.status_code == 200
+    html = page_res.data.decode("utf-8")
+    assert 'id="full_name"' in html
+    assert 'id="email"' in html
+    assert 'id="currency"' in html
+    assert 'id="password"' in html
+    assert 'id="confirm_password"' in html
+    assert 'id="err-full-name"' in html
+    assert 'id="err-email"' in html
+    assert 'id="err-password"' in html
+    assert 'id="err-confirm-password"' in html
+    assert "Create Account" in html
+    assert "Creating your account..." in html
+    assert "Account created. Loading Ledger..." in html
+    assert "An account with this email already exists. Please sign in instead." in html
+    assert 'href="/login"' in html
+

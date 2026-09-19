@@ -1,5 +1,7 @@
 import re
+import logging
 from flask import Blueprint, request, jsonify, session, send_file
+from sqlalchemy.exc import IntegrityError
 from models import db, User, UserSettings, Category, UserSession
 from services.auth_service import (
     hash_password, verify_password, seed_default_categories,
@@ -8,6 +10,8 @@ from services.auth_service import (
     invalidate_all_other_sessions, verify_jwt, extract_token_from_request
 )
 from routes import login_required
+
+logger = logging.getLogger(__name__)
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
@@ -19,17 +23,23 @@ def register():
     full_name = (data.get("full_name") or "").strip()
     currency = data.get("currency") or "₹"
 
+    logger.info("Registration attempt received for email: %s", email)
+
     if not email or not password or not full_name:
+        logger.warning("Registration rejected: missing required fields for email: %s", email)
         return jsonify({"error": "Full name, email, and password are required"}), 400
 
     if not re.match(r"^[^@]+@[^@]+\.[^@]+$", email):
+        logger.warning("Registration rejected: invalid email format for email: %s", email)
         return jsonify({"error": "Please provide a valid email address"}), 400
 
     if len(password) < 8:
+        logger.warning("Registration rejected: password under 8 chars for email: %s", email)
         return jsonify({"error": "Password must be at least 8 characters long"}), 400
 
     existing = User.query.filter_by(email=email).first()
     if existing:
+        logger.info("Registration duplicate check hit for email: %s", email)
         return jsonify({"error": "An account with this email address already exists"}), 409
 
     pwd_hash = hash_password(password)
@@ -42,23 +52,41 @@ def register():
         privacy_mode=False,
         onboarding_completed=False,
     )
-    db.session.add(new_user)
-    db.session.commit()
+
+    try:
+        db.session.add(new_user)
+        db.session.commit()
+        logger.info("User record created in database with user_id: %s", new_user.id)
+    except IntegrityError:
+        db.session.rollback()
+        logger.warning("IntegrityError on registration commit for email: %s (duplicate detected)", email)
+        return jsonify({"error": "An account with this email address already exists"}), 409
+    except Exception as e:
+        db.session.rollback()
+        logger.error("Database error while committing new user: %s", str(e))
+        return jsonify({"error": "Database error while creating user account. Please try again."}), 500
 
     # Seed default categories & settings
-    seed_default_categories(new_user.id)
-    settings = UserSettings(user_id=new_user.id)
-    db.session.add(settings)
-    db.session.commit()
+    try:
+        seed_default_categories(new_user.id)
+        settings = UserSettings(user_id=new_user.id)
+        db.session.add(settings)
+        db.session.commit()
+        logger.info("Default categories and settings seeded for user_id: %s", new_user.id)
+    except Exception as e:
+        logger.warning("Default seeding non-fatal error for user_id %s: %s", new_user.id, str(e))
 
     # Create persistent device session & 30-day token
     user_agent = request.headers.get("User-Agent", "")
     ip_addr = request.headers.get("X-Forwarded-For", request.remote_addr or "").split(",")[0].strip()
     token, session_record = create_user_session(new_user.id, user_agent, ip_addr)
+    logger.info("Persistent session created with session_id: %s for user_id: %s", session_record.id, new_user.id)
 
     session.permanent = True
     session["user_id"] = new_user.id
     session["session_id"] = session_record.id
+
+    logger.info("Registration flow completed successfully for user_id: %s", new_user.id)
 
     return jsonify({
         "message": "Account created successfully",

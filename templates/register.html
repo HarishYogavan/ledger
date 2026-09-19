@@ -31,12 +31,45 @@
       padding: 36px 32px;
       box-shadow: var(--shadow-lg);
       text-align: center;
+      position: relative;
     }
     .auth-logo {
       width: 72px;
       height: 72px;
       margin-bottom: 16px;
       filter: drop-shadow(0 6px 16px rgba(6, 214, 160, 0.4));
+    }
+    .field-error {
+      color: var(--brand-danger, #EF476F);
+      font-size: 11.5px;
+      margin-top: 4px;
+      font-weight: 500;
+      display: none;
+    }
+    .field-error.visible {
+      display: block;
+    }
+    .input-invalid {
+      border-color: var(--brand-danger, #EF476F) !important;
+      box-shadow: 0 0 0 2px rgba(239, 71, 111, 0.2) !important;
+    }
+    .alert-banner {
+      padding: 12px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      margin-bottom: 18px;
+      text-align: left;
+      line-height: 1.45;
+    }
+    .alert-danger {
+      background: var(--brand-danger-bg, rgba(239, 71, 111, 0.12));
+      border: 1px solid rgba(239, 71, 111, 0.35);
+      color: #FFA5B8;
+    }
+    .alert-duplicate {
+      background: rgba(245, 158, 11, 0.12);
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      color: #FDE68A;
     }
     @media (max-width: 480px) {
       body {
@@ -51,26 +84,32 @@
 </head>
 <body>
 
-<div class="auth-card">
+<div class="auth-card" id="register-card">
   <img src="/static/icons/logo-192.png" alt="Ledger Logo" class="auth-logo">
-  <h1 style="font-size: 26px; margin-bottom: 4px;">Get Started with Ledger</h1>
-  <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 24px;">Your Personal Financial Operating System</p>
+  <h1 style="font-size: 26px; margin-bottom: 4px; font-weight: 700; color: #F8FAFC; letter-spacing: -0.02em;">Get Started with Ledger</h1>
+  <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 22px;">Your Personal Financial Operating System</p>
 
-  <div id="auth-error" style="display:none; padding:10px; border-radius:var(--radius-sm); background:var(--brand-danger-bg); border:1px solid rgba(239,71,111,0.3); color:var(--brand-danger); font-size:12px; margin-bottom:16px;"></div>
+  <!-- Dynamic Alert Box -->
+  <div id="auth-alert" style="display:none;"></div>
 
-  <form id="register-form" onsubmit="handleRegister(event)" style="text-align: left;">
-    <div class="form-group">
-      <label class="form-label">Full Name</label>
-      <input type="text" id="full_name" class="form-control" placeholder="e.g. Alexander Hamilton" required autofocus>
+  <form id="register-form" onsubmit="handleRegister(event)" novalidate style="text-align: left;">
+    <!-- Full Name -->
+    <div class="form-group" style="margin-bottom: 14px;">
+      <label class="form-label" for="full_name" style="font-size: 12.5px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">Full Name</label>
+      <input type="text" id="full_name" class="form-control" placeholder="e.g. Alexander Hamilton" autocomplete="name" required autofocus>
+      <div id="err-full-name" class="field-error"></div>
     </div>
 
-    <div class="form-group">
-      <label class="form-label">Email Address</label>
-      <input type="email" id="email" class="form-control" placeholder="name@domain.com" required>
+    <!-- Email Address -->
+    <div class="form-group" style="margin-bottom: 14px;">
+      <label class="form-label" for="email" style="font-size: 12.5px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">Email Address</label>
+      <input type="email" id="email" class="form-control" placeholder="name@domain.com" autocomplete="email" required>
+      <div id="err-email" class="field-error"></div>
     </div>
 
-    <div class="form-group">
-      <label class="form-label">Primary Currency</label>
+    <!-- Currency -->
+    <div class="form-group" style="margin-bottom: 14px;">
+      <label class="form-label" for="currency" style="font-size: 12.5px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">Primary Currency</label>
       <select id="currency" class="form-control">
         <option value="₹">₹ - Indian Rupee (INR)</option>
         <option value="$">$ - US Dollar (USD)</option>
@@ -82,33 +121,135 @@
       </select>
     </div>
 
-    <div class="form-group">
-      <label class="form-label">Password (Minimum 8 characters)</label>
-      <input type="password" id="password" class="form-control" placeholder="••••••••" minlength="8" required>
+    <!-- Password -->
+    <div class="form-group" style="margin-bottom: 14px;">
+      <label class="form-label" for="password" style="font-size: 12.5px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">Password (Minimum 8 characters)</label>
+      <input type="password" id="password" class="form-control" placeholder="••••••••" autocomplete="new-password" minlength="8" required>
+      <div id="err-password" class="field-error"></div>
     </div>
 
-    <div style="font-size: 11.5px; color: var(--text-muted); margin-bottom: 18px; line-height: 1.4;">
+    <!-- Confirm Password -->
+    <div class="form-group" style="margin-bottom: 16px;">
+      <label class="form-label" for="confirm_password" style="font-size: 12.5px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">Confirm Password</label>
+      <input type="password" id="confirm_password" class="form-control" placeholder="••••••••" autocomplete="new-password" minlength="8" required>
+      <div id="err-confirm-password" class="field-error"></div>
+    </div>
+
+    <div style="font-size: 11.5px; color: var(--text-muted); margin-bottom: 18px; line-height: 1.45;">
       🛡️ Zero fake transactions or pre-filled data. You start with your clean, private financial operating system.
     </div>
 
-    <button type="submit" id="submit-btn" class="btn btn-primary" style="width: 100%; padding: 12px; font-size: 14px;">
-      Create Ledger Account
+    <button type="submit" id="submit-btn" class="btn btn-primary" style="width: 100%; padding: 12px; font-size: 14px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px;">
+      <span id="submit-spinner" class="spinner" style="display:none; width:14px; height:14px; border-width:2px; margin:0;"></span>
+      <span id="submit-btn-text">Create Account</span>
     </button>
   </form>
 
   <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--brand-border-subtle); font-size: 13px; color: var(--text-secondary);">
     Already have an account?
-    <a href="/login" style="color: var(--brand-teal); font-weight: 600; text-decoration: none; margin-left: 4px;">Sign In</a>
+    <a href="/login" id="link-signin" style="color: var(--brand-teal); font-weight: 600; text-decoration: none; margin-left: 4px;">Sign In</a>
   </div>
 </div>
 
 <script src="/static/js/api.js"></script>
 <script>
+// Explicit Form State Machine: 'idle' | 'submitting' | 'success' | 'error'
+const FormState = {
+  IDLE: 'idle',
+  SUBMITTING: 'submitting',
+  SUCCESS: 'success',
+  ERROR: 'error'
+};
+
+let currentFormState = FormState.IDLE;
+
+const fullNameInput = document.getElementById('full_name');
+const emailInput = document.getElementById('email');
+const currencySelect = document.getElementById('currency');
+const passwordInput = document.getElementById('password');
+const confirmPasswordInput = document.getElementById('confirm_password');
+const submitBtn = document.getElementById('submit-btn');
+const submitBtnText = document.getElementById('submit-btn-text');
+const submitSpinner = document.getElementById('submit-spinner');
+const alertBox = document.getElementById('auth-alert');
+
+const errFullName = document.getElementById('err-full-name');
+const errEmail = document.getElementById('err-email');
+const errPassword = document.getElementById('err-password');
+const errConfirmPassword = document.getElementById('err-confirm-password');
+
+// Clear field errors dynamically on user input
+[fullNameInput, emailInput, passwordInput, confirmPasswordInput].forEach(input => {
+  input.addEventListener('input', () => {
+    input.classList.remove('input-invalid');
+    const fieldErr = document.getElementById('err-' + input.id.replace('_', '-'));
+    if (fieldErr) {
+      fieldErr.textContent = '';
+      fieldErr.classList.remove('visible');
+    }
+  });
+});
+
+function setFieldError(input, errorElement, message) {
+  input.classList.add('input-invalid');
+  errorElement.textContent = message;
+  errorElement.classList.add('visible');
+}
+
+function clearAllErrors() {
+  [fullNameInput, emailInput, passwordInput, confirmPasswordInput].forEach(input => {
+    input.classList.remove('input-invalid');
+  });
+  [errFullName, errEmail, errPassword, errConfirmPassword].forEach(el => {
+    el.textContent = '';
+    el.classList.remove('visible');
+  });
+  alertBox.style.display = 'none';
+  alertBox.className = '';
+  alertBox.innerHTML = '';
+}
+
+function setFormState(state) {
+  currentFormState = state;
+  const isPending = (state === FormState.SUBMITTING || state === FormState.SUCCESS);
+
+  // Toggle inputs disabled state to prevent duplicate submissions
+  fullNameInput.disabled = isPending;
+  emailInput.disabled = isPending;
+  currencySelect.disabled = isPending;
+  passwordInput.disabled = isPending;
+  confirmPasswordInput.disabled = isPending;
+  submitBtn.disabled = isPending;
+
+  switch (state) {
+    case FormState.IDLE:
+      submitSpinner.style.display = 'none';
+      submitBtnText.textContent = 'Create Account';
+      break;
+
+    case FormState.SUBMITTING:
+      submitSpinner.style.display = 'inline-block';
+      submitBtnText.textContent = 'Creating your account...';
+      break;
+
+    case FormState.SUCCESS:
+      submitSpinner.style.display = 'inline-block';
+      submitBtnText.textContent = 'Account created. Loading Ledger...';
+      break;
+
+    case FormState.ERROR:
+      submitSpinner.style.display = 'none';
+      submitBtnText.textContent = 'Create Account';
+      submitBtn.disabled = false;
+      break;
+  }
+}
+
 // Check for valid existing persistent session before showing register form
 (async function checkExistingSession() {
   const token = window.LedgerAPI.getToken();
   if (token) {
-    const card = document.querySelector('.auth-card');
+    const card = document.getElementById('register-card');
     if (card) card.style.display = 'none';
 
     let splash = document.createElement('div');
@@ -126,7 +267,8 @@
 
     const authRes = await window.LedgerAuth.checkSession();
     if (authRes.authenticated) {
-      window.location.replace('/#dashboard');
+      console.log('[RegisterView] Existing session detected. Redirecting to Dashboard.');
+      window.location.replace('/dashboard');
       return;
     }
 
@@ -135,49 +277,127 @@
   }
 })();
 
+function validateForm() {
+  clearAllErrors();
+  let isValid = true;
+
+  const fullName = fullNameInput.value.trim();
+  const email = emailInput.value.trim();
+  const password = passwordInput.value;
+  const confirmPassword = confirmPasswordInput.value;
+
+  // 1. Validate Full Name
+  if (!fullName) {
+    setFieldError(fullNameInput, errFullName, 'Please enter your full name');
+    isValid = false;
+  } else if (fullName.length < 2) {
+    setFieldError(fullNameInput, errFullName, 'Full name must be at least 2 characters long');
+    isValid = false;
+  }
+
+  // 2. Validate Email Address
+  const emailRegex = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+  if (!email) {
+    setFieldError(emailInput, errEmail, 'Please enter your email address');
+    isValid = false;
+  } else if (!emailRegex.test(email)) {
+    setFieldError(emailInput, errEmail, 'Please provide a valid email address');
+    isValid = false;
+  }
+
+  // 3. Validate Password
+  if (!password) {
+    setFieldError(passwordInput, errPassword, 'Please create a secure password');
+    isValid = false;
+  } else if (password.length < 8) {
+    setFieldError(passwordInput, errPassword, 'Password must be at least 8 characters long');
+    isValid = false;
+  }
+
+  // 4. Validate Confirm Password
+  if (!confirmPassword) {
+    setFieldError(confirmPasswordInput, errConfirmPassword, 'Please confirm your password');
+    isValid = false;
+  } else if (password && confirmPassword !== password) {
+    setFieldError(confirmPasswordInput, errConfirmPassword, 'Passwords do not match');
+    isValid = false;
+  }
+
+  return isValid;
+}
+
 async function handleRegister(e) {
   e.preventDefault();
-  const full_name = document.getElementById('full_name').value.trim();
-  const email = document.getElementById('email').value.trim();
-  const currency = document.getElementById('currency').value;
-  const password = document.getElementById('password').value;
-  const errorBox = document.getElementById('auth-error');
-  const btn = document.getElementById('submit-btn');
 
-  if (!full_name || !email || !password) {
-    errorBox.textContent = 'Please fill in all required fields';
-    errorBox.style.display = 'block';
+  // Prevent duplicate submissions if already in-flight
+  if (currentFormState === FormState.SUBMITTING || currentFormState === FormState.SUCCESS) {
+    console.warn('[RegisterView] Duplicate submission blocked.');
     return;
   }
 
-  errorBox.style.display = 'none';
-  btn.disabled = true;
-  btn.textContent = 'Creating your account...';
+  // Client-side validation before sending request
+  if (!validateForm()) {
+    return;
+  }
+
+  const full_name = fullNameInput.value.trim();
+  const email = emailInput.value.trim().toLowerCase();
+  const currency = currencySelect.value;
+  const password = passwordInput.value;
+
+  // Transition to SUBMITTING state
+  setFormState(FormState.SUBMITTING);
+  console.log('[RegisterView] Registration request dispatched for email:', email);
 
   try {
-    // 1. Send registration request & create user session
-    await window.LedgerAuth.register(full_name, email, password, currency);
+    // 1. Send registration request to backend & establish persistent session
+    const authResult = await window.LedgerAuth.register(full_name, email, password, currency);
+    console.log('[RegisterView] Backend registration succeeded. User ID:', authResult.user && authResult.user.id);
 
-    // 2. Transition loading state
-    btn.textContent = 'Setting up your Ledger...';
+    // 2. Transition to SUCCESS state: "Account created. Loading Ledger..."
+    setFormState(FormState.SUCCESS);
 
-    // 3. Pre-warm default categories/data
+    // 3. Pre-warm initial financial overview data (non-blocking)
     try {
       await Promise.all([
         window.LedgerAPI.getOverview().catch(() => null),
         window.LedgerAPI.getCategories().catch(() => null)
       ]);
-    } catch (e) {
-      // Non-blocking
+    } catch (preWarmErr) {
+      console.warn('[RegisterView] Data pre-warm non-critical warning:', preWarmErr.message);
     }
 
-    // 4. Open the main Dashboard directly
-    window.location.replace('/#dashboard');
+    // 4. Redirect to Dashboard
+    console.log('[RegisterView] Navigating to Dashboard: /dashboard');
+    window.location.replace('/dashboard');
+
   } catch (err) {
-    errorBox.textContent = err.message || 'Registration failed';
-    errorBox.style.display = 'block';
-    btn.disabled = false;
-    btn.textContent = 'Create Ledger Account';
+    console.error('[RegisterView] Registration error caught:', err.message);
+
+    // Stop the loading state immediately and transition to ERROR state
+    setFormState(FormState.ERROR);
+
+    const isDuplicate = (err.status === 409) || (err.message && err.message.toLowerCase().includes('already exists'));
+
+    if (isDuplicate) {
+      // Duplicate account handling
+      setFieldError(emailInput, errEmail, 'An account with this email address already exists');
+      alertBox.className = 'alert-banner alert-duplicate';
+      alertBox.innerHTML = `
+        <div style="font-weight: 700; margin-bottom: 6px;">An account with this email already exists. Please sign in instead.</div>
+        <div style="margin-top: 10px;">
+          <a href="/login" id="alert-signin-btn" class="btn btn-primary" style="display:inline-block; text-decoration:none; padding:6px 14px; font-size:12px; font-weight:600;">
+            Sign In to Your Account
+          </a>
+        </div>
+      `;
+      alertBox.style.display = 'block';
+    } else {
+      // General or Network / Timeout / Validation / Server Error
+      alertBox.className = 'alert-banner alert-danger';
+      alertBox.textContent = err.message || 'An unexpected error occurred during account creation. Please try again.';
+      alertBox.style.display = 'block';
+    }
   }
 }
 </script>

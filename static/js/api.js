@@ -28,9 +28,20 @@ window.LedgerAPI = {
       headers['Content-Type'] = 'application/json';
     }
 
+    // Developer-side non-sensitive logging
+    console.log(`[LedgerAPI] ${options.method || 'GET'} ${endpoint}`);
+
+    // Setup request timeout via AbortController (default 15s)
+    const controller = new AbortController();
+    const timeoutMs = options.timeout || 15000;
+    const timerId = setTimeout(() => {
+      controller.abort();
+    }, timeoutMs);
+
     const config = {
       ...options,
-      headers
+      headers,
+      signal: controller.signal
     };
 
     try {
@@ -69,8 +80,16 @@ window.LedgerAPI = {
 
       return data;
     } catch (err) {
+      if (err.name === 'AbortError') {
+        const timeoutErr = new Error('Request timed out. Please check your network connection.');
+        timeoutErr.status = 408;
+        console.error(`[LedgerAPI] Timeout [${endpoint}] after ${timeoutMs}ms`);
+        throw timeoutErr;
+      }
       console.error(`API Error [${endpoint}]:`, err.message);
       throw err;
+    } finally {
+      clearTimeout(timerId);
     }
   },
 
@@ -342,16 +361,24 @@ window.LedgerAuth = {
   },
 
   async register(full_name, email, password, currency) {
+    console.log('[LedgerAuth] Registering user account for:', email);
     this.setState(this.STATE_LOADING, null);
-    const res = await window.LedgerAPI.register(full_name, email, password, currency);
-    if (!res || !res.token) {
+    try {
+      const res = await window.LedgerAPI.register(full_name, email, password, currency);
+      if (!res || !res.token) {
+        this.setState(this.STATE_UNAUTHENTICATED, null);
+        throw new Error((res && res.error) || 'Registration failed');
+      }
+      console.log('[LedgerAuth] Registration succeeded. Storing token and updating auth state to authenticated.');
+      window.LedgerAPI.setToken(res.token);
+      const user = res.user || (await window.LedgerAPI.getMe()).user;
+      this.setState(this.STATE_AUTHENTICATED, user);
+      return { user, token: res.token };
+    } catch (err) {
+      console.error('[LedgerAuth] Registration error:', err.message);
       this.setState(this.STATE_UNAUTHENTICATED, null);
-      throw new Error((res && res.error) || 'Registration failed');
+      throw err;
     }
-    window.LedgerAPI.setToken(res.token);
-    const user = res.user || (await window.LedgerAPI.getMe()).user;
-    this.setState(this.STATE_AUTHENTICATED, user);
-    return { user, token: res.token };
   },
 
   async logout() {
