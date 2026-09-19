@@ -62,3 +62,54 @@ def test_export_data(auth_client):
     export_resp = client.get("/api/auth/export-data", headers=headers)
     assert export_resp.status_code == 200
     assert export_resp.mimetype == "application/zip"
+
+def test_persistent_session_and_multi_device(client):
+    # 1. Register User on Device 1 (iPhone)
+    dev1_headers = {"User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1"}
+    r1 = client.post("/api/auth/register", json={
+        "full_name": "Multi Device User",
+        "email": "multidev@ledger.finance",
+        "password": "Password123!",
+        "currency": "₹"
+    }, headers=dev1_headers)
+    assert r1.status_code == 201
+    tok1 = r1.get_json()["token"]
+    sid1 = r1.get_json()["session_id"]
+
+    # 2. Login User on Device 2 (Windows PC)
+    dev2_headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+    r2 = client.post("/api/auth/login", json={
+        "email": "multidev@ledger.finance",
+        "password": "Password123!"
+    }, headers=dev2_headers)
+    assert r2.status_code == 200
+    tok2 = r2.get_json()["token"]
+    sid2 = r2.get_json()["session_id"]
+    assert sid1 != sid2
+
+    # 3. Check sessions list from Device 2
+    sess_resp = client.get("/api/auth/sessions", headers={"Authorization": f"Bearer {tok2}"})
+    assert sess_resp.status_code == 200
+    sessions = sess_resp.get_json()["sessions"]
+    assert len(sessions) == 2
+    dev_names = [s["device_name"] for s in sessions]
+    assert "iPhone" in dev_names
+    assert "Windows PC" in dev_names
+
+    # 4. Device 1 remains authenticated and can fetch profile
+    me1 = client.get("/api/auth/me", headers={"Authorization": f"Bearer {tok1}"})
+    assert me1.status_code == 200
+    assert me1.get_json()["user"]["email"] == "multidev@ledger.finance"
+
+    # 5. Device 1 signs out
+    logout1 = client.post("/api/auth/logout", headers={"Authorization": f"Bearer {tok1}"})
+    assert logout1.status_code == 200
+
+    # 6. Device 1 is now rejected (session invalidated)
+    me1_after = client.get("/api/auth/me", headers={"Authorization": f"Bearer {tok1}"})
+    assert me1_after.status_code == 401
+
+    # 7. Device 2 is STILL active and untouched!
+    me2_after = client.get("/api/auth/me", headers={"Authorization": f"Bearer {tok2}"})
+    assert me2_after.status_code == 200
+    assert me2_after.get_json()["authenticated"] is True

@@ -5,13 +5,15 @@ from models import db
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
-def create_app():
+def create_app(test_config=None):
     app = Flask(
         __name__,
         static_folder=os.path.join(BASE_DIR, "static"),
         template_folder=os.path.join(BASE_DIR, "templates")
     )
     app.config.from_object(Config)
+    if test_config:
+        app.config.update(test_config)
 
     # Ensure uploads directory exists
     os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
@@ -73,8 +75,6 @@ def create_app():
     # UI Pages
     @app.route("/")
     def index():
-        if "user_id" not in session:
-            return redirect(url_for("login_page"))
         return render_template("index.html")
 
     @app.route("/login")

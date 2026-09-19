@@ -81,7 +81,19 @@ window.LedgerAPI = {
   },
   async logout() {
     try { await this.request('/api/auth/logout', { method: 'POST' }); }
-    finally { this.setToken(null); window.location.href = '/login'; }
+    finally {
+      this.setToken(null);
+      window.location.replace('/login');
+    }
+  },
+  async getSessions() {
+    return this.request('/api/auth/sessions');
+  },
+  async revokeSession(sessionId) {
+    return this.request(`/api/auth/sessions/${sessionId}`, { method: 'DELETE' });
+  },
+  async revokeOtherSessions() {
+    return this.request('/api/auth/sessions/revoke-others', { method: 'POST' });
   },
   async completeOnboarding(payload) {
     return this.request('/api/auth/onboarding', { method: 'POST', body: JSON.stringify(payload) });

@@ -55,6 +55,7 @@ class User(db.Model):
     memories = db.relationship("FinancialMemory", backref="user", cascade="all, delete-orphan", lazy="dynamic")
     life_events = db.relationship("LifeEvent", backref="user", cascade="all, delete-orphan", lazy="dynamic")
     workspaces = db.relationship("SharedWorkspace", backref="owner", cascade="all, delete-orphan", lazy="dynamic")
+    sessions = db.relationship("UserSession", backref="user", cascade="all, delete-orphan", lazy="dynamic")
 
     def to_dict(self):
         return {
@@ -766,4 +767,33 @@ class LifeEvent(db.Model):
             "income_delta": self.income_delta,
             "notes": self.notes,
             "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+class UserSession(db.Model):
+    """Secure multi-device persistent session records"""
+    __tablename__ = "user_sessions"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    session_token = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    device_name = db.Column(db.String(100), default="Unknown Device")
+    browser_name = db.Column(db.String(100), default="Unknown Browser")
+    ip_address = db.Column(db.String(64), nullable=True)
+    created_at = db.Column(db.DateTime, default=now_utc)
+    last_active = db.Column(db.DateTime, default=now_utc)
+    expires_at = db.Column(db.DateTime, nullable=False)
+    is_active = db.Column(db.Boolean, default=True)
+
+    def to_dict(self, is_current=False):
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "device_name": self.device_name,
+            "browser_name": self.browser_name,
+            "ip_address": self.ip_address,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "last_active": self.last_active.isoformat() if self.last_active else None,
+            "expires_at": self.expires_at.isoformat() if self.expires_at else None,
+            "is_active": self.is_active,
+            "is_current": is_current,
         }

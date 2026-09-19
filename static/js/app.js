@@ -8,11 +8,27 @@ window.LedgerApp = {
   currentUser: null,
 
   async init() {
+    const splash = document.getElementById('app-splash-loader');
+    const hideSplash = () => {
+      if (splash) {
+        splash.style.opacity = '0';
+        setTimeout(() => splash.remove(), 200);
+      }
+    };
+
     try {
-      // 1. Authenticate session
+      // 0. Check if persistent token exists
+      const token = window.LedgerAPI.getToken();
+      if (!token) {
+        window.location.replace('/login');
+        return;
+      }
+
+      // 1. Authenticate persistent session
       const meRes = await window.LedgerAPI.getMe();
-      if (!meRes.authenticated) {
-        window.location.href = '/login';
+      if (!meRes || !meRes.authenticated) {
+        window.LedgerAPI.setToken(null);
+        window.location.replace('/login');
         return;
       }
       this.currentUser = meRes.user;
@@ -35,10 +51,13 @@ window.LedgerApp = {
       if (emailEl) emailEl.textContent = this.currentUser.email;
       if (avatarEl) avatarEl.textContent = (this.currentUser.full_name || 'U').charAt(0).toUpperCase();
 
-      // 5. Setup Hash Routing
+      // 5. Setup Hash Routing & Navigate to initial route
       window.addEventListener('hashchange', () => this.handleRouting());
       const initialRoute = window.location.hash.replace('#', '') || 'dashboard';
       this.navigate(initialRoute);
+
+      // Smoothly dismiss splash screen
+      hideSplash();
 
       // 6. First-time onboarding check
       if (!this.currentUser.onboarding_completed) {
@@ -64,6 +83,14 @@ window.LedgerApp = {
 
     } catch (err) {
       console.error('Ledger Init Failure:', err);
+      window.LedgerAPI.setToken(null);
+      window.location.replace('/login');
+    }
+  },
+
+  async confirmSignOut() {
+    if (confirm('Are you sure you want to sign out of Ledger on this device?')) {
+      await window.LedgerAPI.logout();
     }
   },
 

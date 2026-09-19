@@ -13,9 +13,13 @@ window.LedgerViews.settings = {
     `;
 
     try {
-      const data = await window.LedgerAPI.getSettings();
+      const [data, sessionRes] = await Promise.all([
+        window.LedgerAPI.getSettings(),
+        window.LedgerAPI.getSessions().catch(() => ({ sessions: [] }))
+      ]);
       const u = data.user || {};
       const s = data.settings || {};
+      const sessions = sessionRes.sessions || [];
 
       container.innerHTML = `
         <div style="margin-bottom:24px;">
@@ -136,6 +140,63 @@ window.LedgerViews.settings = {
             </form>
           </div>
 
+          <!-- Active Devices & Sessions -->
+          <div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
+              <div>
+                <h3 style="font-size:16px; margin:0 0 2px 0;">Active Devices & Sessions</h3>
+                <p style="font-size:12px; color:var(--text-secondary); margin:0;">Manage authenticated devices that currently have access to Ledger.</p>
+              </div>
+              ${sessions.length > 1 ? `
+                <button class="btn btn-secondary" style="font-size:12px; padding:6px 12px;" onclick="window.LedgerViews.settings.revokeOtherSessions()">
+                  Sign Out Other Devices (${sessions.length - 1})
+                </button>
+              ` : ''}
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:16px;">
+              ${sessions.map(sess => {
+                const isPhone = sess.device_name.toLowerCase().includes('phone') || sess.device_name.toLowerCase().includes('android');
+                const isCurrent = sess.is_current;
+                const icon = isPhone ? '📱' : '💻';
+                const lastActiveStr = sess.last_active ? new Date(sess.last_active).toLocaleString() : 'Just now';
+
+                return `
+                  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; padding:12px 14px; background:var(--brand-surface); border-radius:var(--radius-md); border:1px solid ${isCurrent ? 'rgba(6,214,160,0.3)' : 'var(--brand-border-subtle)'};">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                      <span style="font-size:22px;">${icon}</span>
+                      <div>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                          <strong style="font-size:13px; color:var(--text-primary);">${sess.device_name} • ${sess.browser_name}</strong>
+                          ${isCurrent ? '<span class="badge" style="background:rgba(6,214,160,0.15); color:var(--brand-teal); border:1px solid var(--brand-teal); font-size:10px;">This Device</span>' : ''}
+                        </div>
+                        <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">
+                          IP: ${sess.ip_address || 'Protected'} • Last active: ${lastActiveStr}
+                        </div>
+                      </div>
+                    </div>
+                    ${!isCurrent ? `
+                      <button class="btn btn-secondary" style="font-size:11px; padding:4px 10px;" onclick="window.LedgerViews.settings.revokeSession(${sess.id})">
+                        Sign Out Device
+                      </button>
+                    ` : `
+                      <button class="btn btn-secondary" style="font-size:11px; padding:4px 10px;" onclick="window.LedgerApp.confirmSignOut()">
+                        Sign Out
+                      </button>
+                    `}
+                  </div>
+                `;
+              }).join('')}
+            </div>
+
+            <div style="padding-top:10px; border-top:1px solid var(--brand-border-subtle); display:flex; justify-content:flex-end;">
+              <button class="btn btn-secondary" style="display:flex; align-items:center; gap:6px; font-size:12px; padding:8px 16px; color:var(--brand-danger);" onclick="window.LedgerApp.confirmSignOut()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                Sign Out of This Device
+              </button>
+            </div>
+          </div>
+
           <!-- Data Ownership & Danger Zone -->
           <div class="card" style="border-color:rgba(239,71,111,0.3);">
             <h3 style="font-size:16px; color:var(--brand-danger); margin-bottom:14px;">Data Portability & Account Lifecycle</h3>
@@ -235,5 +296,27 @@ window.LedgerViews.settings = {
       alert('Your account and financial data have been permanently deleted.');
       window.location.href = '/register';
     }).catch(err => alert(err.message));
+  },
+
+  async revokeSession(sessionId) {
+    if (!confirm('Sign out this remote device?')) return;
+    try {
+      await window.LedgerAPI.revokeSession(sessionId);
+      const container = document.getElementById('view-container');
+      this.render(container);
+    } catch (e) {
+      alert(e.message || 'Failed to revoke session');
+    }
+  },
+
+  async revokeOtherSessions() {
+    if (!confirm('Sign out of all other devices? Your current session on this device will remain active.')) return;
+    try {
+      await window.LedgerAPI.revokeOtherSessions();
+      const container = document.getElementById('view-container');
+      this.render(container);
+    } catch (e) {
+      alert(e.message || 'Failed to revoke other sessions');
+    }
   }
 };

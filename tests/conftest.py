@@ -6,11 +6,11 @@ from config import Config
 
 @pytest.fixture
 def app():
-    # Use in-memory or dedicated test database
-    os.environ["DATABASE_PATH"] = ":memory:"
-    app = create_app()
-    app.config["TESTING"] = True
-    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
+    # Use clean in-memory test database
+    app = create_app({
+        "TESTING": True,
+        "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
+    })
 
     with app.app_context():
         db.create_all()

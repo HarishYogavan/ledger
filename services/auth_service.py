@@ -2,11 +2,16 @@ import io
 import csv
 import json
 import zipfile
+import secrets
 import bcrypt
 import jwt
 from datetime import datetime, timedelta, timezone
 from config import Config
-from models import db, User, Category, Transaction, Budget, Goal, RecurringPayment, Bill, Asset, Liability, Scenario, Notification, AIConversation, Receipt, UserSettings
+from models import (
+    db, User, UserSession, Category, Transaction, Budget, Goal,
+    RecurringPayment, Bill, Asset, Liability, Scenario, Notification,
+    AIConversation, Receipt, UserSettings, now_utc
+)
 
 def hash_password(password: str) -> str:
     salt = bcrypt.gensalt(rounds=12)
@@ -18,20 +23,153 @@ def verify_password(password: str, hashed: str) -> bool:
     except Exception:
         return False
 
-def generate_jwt(user_id: int) -> str:
+def parse_client_device(user_agent_str: str) -> tuple[str, str]:
+    """Extract human-readable device and browser names from User-Agent string."""
+    if not user_agent_str:
+        return ("Desktop Device", "Web Browser")
+
+    ua = user_agent_str.lower()
+    
+    # Device / OS
+    if "iphone" in ua:
+        device = "iPhone"
+    elif "ipad" in ua:
+        device = "iPad"
+    elif "android" in ua:
+        device = "Android Device"
+    elif "windows" in ua:
+        device = "Windows PC"
+    elif "macintosh" in ua or "mac os" in ua:
+        device = "Mac"
+    elif "linux" in ua:
+        device = "Linux Machine"
+    else:
+        device = "Desktop Device"
+
+    # Browser
+    if "edg" in ua:
+        browser = "Microsoft Edge"
+    elif "chrome" in ua and "safari" in ua:
+        browser = "Google Chrome"
+    elif "safari" in ua and "chrome" not in ua:
+        browser = "Apple Safari"
+    elif "firefox" in ua:
+        browser = "Mozilla Firefox"
+    elif "opera" in ua or "opr" in ua:
+        browser = "Opera"
+    else:
+        browser = "Web Browser"
+
+    return (device, browser)
+
+def is_session_expired(expires_at: datetime) -> bool:
+    if not expires_at:
+        return False
+    now = datetime.now(timezone.utc)
+    exp = expires_at if expires_at.tzinfo else expires_at.replace(tzinfo=timezone.utc)
+    return exp < now
+
+def create_user_session(user_id: int, user_agent_str: str = "", ip_address: str = "") -> tuple[str, UserSession]:
+    """Creates a persistent 30-day database session record and corresponding JWT token."""
+    device_name, browser_name = parse_client_device(user_agent_str)
+    session_token = secrets.token_urlsafe(36)
+    expires_at = datetime.now(timezone.utc) + timedelta(days=30)
+
+    session_record = UserSession(
+        user_id=user_id,
+        session_token=session_token,
+        device_name=device_name,
+        browser_name=browser_name,
+        ip_address=ip_address or "127.0.0.1",
+        created_at=datetime.now(timezone.utc),
+        last_active=datetime.now(timezone.utc),
+        expires_at=expires_at,
+        is_active=True,
+    )
+    db.session.add(session_record)
+    db.session.commit()
+
+    jwt_token = generate_jwt(user_id, session_record.id)
+    return (jwt_token, session_record)
+
+def generate_jwt(user_id: int, session_id: int | None = None) -> str:
+    """Generates a secure 30-day JWT token with user_id and session_id claims."""
     payload = {
         "sub": user_id,
+        "sid": session_id,
         "iat": datetime.now(timezone.utc),
-        "exp": datetime.now(timezone.utc) + timedelta(days=7),
+        "exp": datetime.now(timezone.utc) + timedelta(days=30),
     }
     return jwt.encode(payload, Config.SECRET_KEY, algorithm="HS256")
 
-def verify_jwt(token: str) -> int | None:
+def verify_jwt(token: str) -> tuple[int, int | None] | None:
+    """Verifies JWT signature and returns (user_id, session_id)."""
     try:
         payload = jwt.decode(token, Config.SECRET_KEY, algorithms=["HS256"])
-        return payload.get("sub")
+        user_id = payload.get("sub")
+        session_id = payload.get("sid")
+        if not user_id:
+            return None
+        return (user_id, session_id)
     except Exception:
         return None
+
+def validate_user_session(user_id: int, session_id: int | None = None) -> UserSession | None:
+    """Validates session record in database, ensuring it is active and not expired."""
+    now = datetime.now(timezone.utc)
+    if session_id:
+        sess = UserSession.query.filter_by(id=session_id, user_id=user_id, is_active=True).first()
+        if sess:
+            if is_session_expired(sess.expires_at):
+                sess.is_active = False
+                db.session.commit()
+                return None
+            sess.last_active = now
+            db.session.commit()
+            return sess
+        return None
+    
+    # If token has no sid (legacy or session cookie), check/create session
+    latest = UserSession.query.filter_by(user_id=user_id, is_active=True).order_by(UserSession.last_active.desc()).first()
+    if latest and not is_session_expired(latest.expires_at):
+        latest.last_active = now
+        db.session.commit()
+        return latest
+    return None
+
+def get_active_sessions(user_id: int, current_session_id: int | None = None) -> list[dict]:
+    """Returns list of active sessions for user, indicating which is current."""
+    sessions = UserSession.query.filter_by(user_id=user_id, is_active=True).order_by(UserSession.last_active.desc()).all()
+    result = []
+    for s in sessions:
+        if is_session_expired(s.expires_at):
+            s.is_active = False
+            continue
+        is_curr = (current_session_id is not None and s.id == current_session_id)
+        result.append(s.to_dict(is_current=is_curr))
+    db.session.commit()
+    return result
+
+def invalidate_session(session_id: int, user_id: int) -> bool:
+    """Deactivates a specific device session."""
+    sess = UserSession.query.filter_by(id=session_id, user_id=user_id).first()
+    if sess:
+        sess.is_active = False
+        db.session.commit()
+        return True
+    return False
+
+def invalidate_all_other_sessions(user_id: int, current_session_id: int | None = None) -> int:
+    """Deactivates all active sessions except the specified current one."""
+    query = UserSession.query.filter_by(user_id=user_id, is_active=True)
+    if current_session_id:
+        query = query.filter(UserSession.id != current_session_id)
+    revoked = query.all()
+    count = len(revoked)
+    for s in revoked:
+        s.is_active = False
+    db.session.commit()
+    return count
 
 def seed_default_categories(user_id: int):
     """Seed initial standard financial categories for a newly created user."""

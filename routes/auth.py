@@ -1,7 +1,11 @@
 import re
 from flask import Blueprint, request, jsonify, session, send_file
-from models import db, User, UserSettings, Category
-from services.auth_service import hash_password, verify_password, generate_jwt, seed_default_categories, export_all_user_data_zip
+from models import db, User, UserSettings, Category, UserSession
+from services.auth_service import (
+    hash_password, verify_password, seed_default_categories,
+    export_all_user_data_zip, create_user_session, get_active_sessions,
+    invalidate_session, invalidate_all_other_sessions, verify_jwt
+)
 from routes import login_required
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
@@ -46,14 +50,20 @@ def register():
     db.session.add(settings)
     db.session.commit()
 
-    # Create session & token
+    # Create persistent device session & 30-day token
+    user_agent = request.headers.get("User-Agent", "")
+    ip_addr = request.headers.get("X-Forwarded-For", request.remote_addr or "").split(",")[0].strip()
+    token, session_record = create_user_session(new_user.id, user_agent, ip_addr)
+
+    session.permanent = True
     session["user_id"] = new_user.id
-    token = generate_jwt(new_user.id)
+    session["session_id"] = session_record.id
 
     return jsonify({
         "message": "Account created successfully",
         "user": new_user.to_dict(),
         "token": token,
+        "session_id": session_record.id,
     }), 201
 
 @auth_bp.route("/login", methods=["POST"])
@@ -69,27 +79,71 @@ def login():
     if not user or not verify_password(password, user.password_hash):
         return jsonify({"error": "Invalid email or password"}), 401
 
+    # Create persistent device session & 30-day token
+    user_agent = request.headers.get("User-Agent", "")
+    ip_addr = request.headers.get("X-Forwarded-For", request.remote_addr or "").split(",")[0].strip()
+    token, session_record = create_user_session(user.id, user_agent, ip_addr)
+
+    session.permanent = True
     session["user_id"] = user.id
-    token = generate_jwt(user.id)
+    session["session_id"] = session_record.id
 
     return jsonify({
         "message": "Logged in successfully",
         "user": user.to_dict(),
         "token": token,
+        "session_id": session_record.id,
     }), 200
 
 @auth_bp.route("/logout", methods=["POST"])
 def logout():
-    session.pop("user_id", None)
+    current_session_id = getattr(request, "current_session_id", None) or session.get("session_id")
+    user_id = session.get("user_id")
+
+    if not current_session_id:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            jwt_res = verify_jwt(auth_header.split(" ")[1])
+            if jwt_res:
+                user_id, current_session_id = jwt_res
+
+    if current_session_id and user_id:
+        invalidate_session(current_session_id, user_id)
+
+    session.clear()
     return jsonify({"message": "Logged out successfully"}), 200
 
 @auth_bp.route("/me", methods=["GET"])
 @login_required
 def me():
+    current_sid = getattr(request, "current_session_id", None) or session.get("session_id")
     return jsonify({
         "user": request.current_user.to_dict(),
+        "session_id": current_sid,
         "authenticated": True
     }), 200
+
+@auth_bp.route("/sessions", methods=["GET"])
+@login_required
+def list_sessions():
+    current_sid = getattr(request, "current_session_id", None) or session.get("session_id")
+    sessions = get_active_sessions(request.current_user.id, current_sid)
+    return jsonify({"sessions": sessions}), 200
+
+@auth_bp.route("/sessions/<int:session_id>", methods=["DELETE"])
+@login_required
+def revoke_session_endpoint(session_id):
+    success = invalidate_session(session_id, request.current_user.id)
+    if not success:
+        return jsonify({"error": "Session not found"}), 404
+    return jsonify({"message": "Device session revoked successfully"}), 200
+
+@auth_bp.route("/sessions/revoke-others", methods=["POST"])
+@login_required
+def revoke_other_sessions_endpoint():
+    current_sid = getattr(request, "current_session_id", None) or session.get("session_id")
+    count = invalidate_all_other_sessions(request.current_user.id, current_sid)
+    return jsonify({"message": f"Revoked {count} other active device sessions"}), 200
 
 @auth_bp.route("/reset-password", methods=["POST"])
 def reset_password():
@@ -105,7 +159,6 @@ def reset_password():
 
     user = User.query.filter_by(email=email).first()
     if not user:
-        # Avoid user enumeration in public responses
         return jsonify({"message": "If an account matches this email, the password has been reset."}), 200
 
     user.password_hash = hash_password(new_password)
@@ -164,6 +217,6 @@ def delete_account():
     user_id = user.id
     db.session.delete(user)
     db.session.commit()
-    session.pop("user_id", None)
+    session.clear()
 
     return jsonify({"message": f"Account #{user_id} and all associated data permanently deleted."}), 200
