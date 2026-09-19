@@ -44,7 +44,8 @@ print('[PASS] Logged in from iPhone Safari with session:', mobile_sid)
 assert desktop_sid != mobile_sid
 
 # 5. Check active sessions from Desktop
-sess_res = requests.get(f'{BASE_URL}/api/auth/sessions', headers={'Authorization': f'Bearer {desktop_token}', **desktop_headers})
+desktop_auth_headers = {'Authorization': f'Bearer {desktop_token}', 'X-Auth-Token': desktop_token, **desktop_headers}
+sess_res = requests.get(f'{BASE_URL}/api/auth/sessions', headers=desktop_auth_headers)
 assert sess_res.status_code == 200, sess_res.text
 sessions = sess_res.json()['sessions']
 print(f'[PASS] Active sessions retrieved: {len(sessions)}')
@@ -53,23 +54,23 @@ for s in sessions:
 assert len(sessions) >= 2
 
 # 6. Verify /api/auth/me works for both independent sessions
-me_desktop = requests.get(f'{BASE_URL}/api/auth/me', headers={'Authorization': f'Bearer {desktop_token}'})
+me_desktop = requests.get(f'{BASE_URL}/api/auth/me', headers={'Authorization': f'Bearer {desktop_token}', 'X-Auth-Token': desktop_token})
 assert me_desktop.status_code == 200
-me_mobile = requests.get(f'{BASE_URL}/api/auth/me', headers={'Authorization': f'Bearer {mobile_token}'})
+me_mobile = requests.get(f'{BASE_URL}/api/auth/me', headers={'Authorization': f'Bearer {mobile_token}', 'X-Auth-Token': mobile_token})
 assert me_mobile.status_code == 200
 print('[PASS] Both Desktop and Mobile sessions authenticate independently via /api/auth/me')
 
 # 7. Desktop revokes Mobile session
-del_res = requests.delete(f'{BASE_URL}/api/auth/sessions/{mobile_sid}', headers={'Authorization': f'Bearer {desktop_token}'})
+del_res = requests.delete(f'{BASE_URL}/api/auth/sessions/{mobile_sid}', headers={'Authorization': f'Bearer {desktop_token}', 'X-Auth-Token': desktop_token})
 assert del_res.status_code == 200, del_res.text
 print('[PASS] Mobile session revoked remotely by Desktop')
 
 # 8. Verify Mobile session is now rejected, while Desktop session remains active
-me_mobile_after = requests.get(f'{BASE_URL}/api/auth/me', headers={'Authorization': f'Bearer {mobile_token}'})
+me_mobile_after = requests.get(f'{BASE_URL}/api/auth/me', headers={'Authorization': f'Bearer {mobile_token}', 'X-Auth-Token': mobile_token})
 assert me_mobile_after.status_code == 401
 print('[PASS] Revoked Mobile session properly rejected (HTTP 401)')
 
-me_desktop_after = requests.get(f'{BASE_URL}/api/auth/me', headers={'Authorization': f'Bearer {desktop_token}'})
+me_desktop_after = requests.get(f'{BASE_URL}/api/auth/me', headers={'Authorization': f'Bearer {desktop_token}', 'X-Auth-Token': desktop_token})
 assert me_desktop_after.status_code == 200
 print('[PASS] Desktop session remains securely authenticated (HTTP 200)')
 
