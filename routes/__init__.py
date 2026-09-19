@@ -31,7 +31,9 @@ def login_required(f):
             return jsonify({"error": "User not found", "authenticated": False}), 401
 
         # 4. Validate persistent session
-        valid_session = validate_user_session(user_id, session_id)
+        user_agent = request.headers.get("User-Agent", "")
+        ip_addr = request.headers.get("X-Forwarded-For", request.remote_addr or "").split(",")[0].strip()
+        valid_session = validate_user_session(user_id, session_id, user_agent, ip_addr)
         if session_id and not valid_session:
             session.clear()
             return jsonify({"error": "Session revoked or expired", "authenticated": False}), 401

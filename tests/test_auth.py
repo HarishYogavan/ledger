@@ -113,3 +113,26 @@ def test_persistent_session_and_multi_device(client):
     me2_after = client.get("/api/auth/me", headers={"Authorization": f"Bearer {tok2}"})
     assert me2_after.status_code == 200
     assert me2_after.get_json()["authenticated"] is True
+
+def test_protected_ui_routes_and_error_handling(client):
+    # Test all UI routes return 200 OK
+    ui_routes = ["/", "/dashboard", "/transactions", "/budgets", "/analytics", "/goals", "/settings"]
+    for route in ui_routes:
+        res = client.get(route)
+        assert res.status_code == 200
+
+    # Test login with invalid password
+    bad_pwd = client.post("/api/auth/login", json={
+        "email": "multidev@ledger.finance",
+        "password": "WrongPassword999!"
+    })
+    assert bad_pwd.status_code == 401
+    assert "error" in bad_pwd.get_json()
+
+    # Test login with nonexistent email
+    no_user = client.post("/api/auth/login", json={
+        "email": "nonexistent_email_12345@ledger.io",
+        "password": "SomePassword123!"
+    })
+    assert no_user.status_code == 401
+    assert "error" in no_user.get_json()

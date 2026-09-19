@@ -36,28 +36,40 @@ window.LedgerAPI = {
     try {
       const response = await fetch(endpoint, config);
 
-      if (response.status === 401) {
-        // Unauthorized
-        this.setToken(null);
-        if (!window.location.pathname.includes('/login') && !window.location.pathname.includes('/register')) {
-          window.location.href = '/login';
-        }
-        return { error: 'Session expired' };
-      }
-
       // Check if file download (CSV / ZIP)
       const contentType = response.headers.get('Content-Type') || '';
       if (contentType.includes('text/csv') || contentType.includes('application/zip')) {
+        if (!response.ok) {
+          throw new Error('File download failed with status ' + response.status);
+        }
         return response.blob();
       }
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
+
       if (!response.ok) {
-        throw new Error(data.error || 'API request failed');
+        const errorMsg = data.error || (response.status === 401 ? 'Authentication required' : 'API request failed');
+
+        // Only trigger session revocation for protected endpoints (not login/register)
+        if (response.status === 401 && !endpoint.startsWith('/api/auth/login') && !endpoint.startsWith('/api/auth/register')) {
+          this.setToken(null);
+          if (window.LedgerAuth) {
+            window.LedgerAuth.setState(window.LedgerAuth.STATE_UNAUTHENTICATED, null);
+          }
+          if (!window.location.pathname.includes('/login') && !window.location.pathname.includes('/register')) {
+            window.location.href = '/login';
+          }
+        }
+
+        const err = new Error(errorMsg);
+        err.status = response.status;
+        err.data = data;
+        throw err;
       }
+
       return data;
     } catch (err) {
-      console.error(`API Error [${endpoint}]:`, err);
+      console.error(`API Error [${endpoint}]:`, err.message);
       throw err;
     }
   },
@@ -69,7 +81,7 @@ window.LedgerAPI = {
       method: 'POST',
       body: JSON.stringify({ email, password })
     });
-    if (res.token) this.setToken(res.token);
+    if (res && res.token) this.setToken(res.token);
     return res;
   },
   async register(full_name, email, password, currency) {
@@ -77,13 +89,16 @@ window.LedgerAPI = {
       method: 'POST',
       body: JSON.stringify({ full_name, email, password, currency })
     });
-    if (res.token) this.setToken(res.token);
+    if (res && res.token) this.setToken(res.token);
     return res;
   },
   async logout() {
     try { await this.request('/api/auth/logout', { method: 'POST' }); }
     finally {
       this.setToken(null);
+      if (window.LedgerAuth) {
+        window.LedgerAuth.setState(window.LedgerAuth.STATE_UNAUTHENTICATED, null);
+      }
       window.location.replace('/login');
     }
   },
@@ -247,5 +262,104 @@ window.LedgerAPI = {
   async getLifeEvents() { return this.request('/api/scenarios/life-events'); },
   async createLifeEvent(payload) { return this.request('/api/scenarios/life-events', { method: 'POST', body: JSON.stringify(payload) }); },
   async deleteLifeEvent(id) { return this.request(`/api/scenarios/life-events/${id}`, { method: 'DELETE' }); }
+};
+
+/**
+ * LEDGER GLOBAL AUTHENTICATION STATE MACHINE
+ * Explicit 3-State Architecture: 'loading' | 'authenticated' | 'unauthenticated'
+ */
+window.LedgerAuth = {
+  STATE_LOADING: 'loading',
+  STATE_AUTHENTICATED: 'authenticated',
+  STATE_UNAUTHENTICATED: 'unauthenticated',
+
+  state: 'loading',
+  currentUser: null,
+  token: null,
+  listeners: [],
+
+  subscribe(fn) {
+    this.listeners.push(fn);
+    return () => {
+      this.listeners = this.listeners.filter(l => l !== fn);
+    };
+  },
+
+  setState(newState, user = null) {
+    this.state = newState;
+    this.currentUser = user;
+    this.token = window.LedgerAPI.getToken();
+    this.listeners.forEach(fn => {
+      try { fn(this.state, this.currentUser); } catch (e) { console.error('Auth listener error:', e); }
+    });
+  },
+
+  isAuthenticated() {
+    return this.state === this.STATE_AUTHENTICATED;
+  },
+
+  isLoading() {
+    return this.state === this.STATE_LOADING;
+  },
+
+  async checkSession() {
+    this.setState(this.STATE_LOADING, null);
+    const token = window.LedgerAPI.getToken();
+    if (!token) {
+      this.setState(this.STATE_UNAUTHENTICATED, null);
+      return { authenticated: false, state: this.STATE_UNAUTHENTICATED };
+    }
+
+    try {
+      const res = await window.LedgerAPI.getMe();
+      if (res && res.authenticated && res.user) {
+        this.setState(this.STATE_AUTHENTICATED, res.user);
+        return { authenticated: true, user: res.user, state: this.STATE_AUTHENTICATED };
+      } else {
+        window.LedgerAPI.setToken(null);
+        this.setState(this.STATE_UNAUTHENTICATED, null);
+        return { authenticated: false, state: this.STATE_UNAUTHENTICATED };
+      }
+    } catch (err) {
+      console.warn('Session verification check failed:', err.message);
+      window.LedgerAPI.setToken(null);
+      this.setState(this.STATE_UNAUTHENTICATED, null);
+      return { authenticated: false, state: this.STATE_UNAUTHENTICATED, error: err };
+    }
+  },
+
+  async login(email, password) {
+    this.setState(this.STATE_LOADING, null);
+    const res = await window.LedgerAPI.login(email, password);
+    if (!res || !res.token) {
+      this.setState(this.STATE_UNAUTHENTICATED, null);
+      throw new Error((res && res.error) || 'Authentication failed');
+    }
+    window.LedgerAPI.setToken(res.token);
+    const user = res.user || (await window.LedgerAPI.getMe()).user;
+    this.setState(this.STATE_AUTHENTICATED, user);
+    return { user, token: res.token };
+  },
+
+  async register(full_name, email, password, currency) {
+    this.setState(this.STATE_LOADING, null);
+    const res = await window.LedgerAPI.register(full_name, email, password, currency);
+    if (!res || !res.token) {
+      this.setState(this.STATE_UNAUTHENTICATED, null);
+      throw new Error((res && res.error) || 'Registration failed');
+    }
+    window.LedgerAPI.setToken(res.token);
+    const user = res.user || (await window.LedgerAPI.getMe()).user;
+    this.setState(this.STATE_AUTHENTICATED, user);
+    return { user, token: res.token };
+  },
+
+  async logout() {
+    try {
+      await window.LedgerAPI.logout();
+    } finally {
+      this.setState(this.STATE_UNAUTHENTICATED, null);
+    }
+  }
 };
 

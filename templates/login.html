@@ -105,14 +105,10 @@
     `;
     document.body.appendChild(splash);
 
-    try {
-      const me = await window.LedgerAPI.getMe();
-      if (me && me.authenticated) {
-        window.location.replace('/');
-        return;
-      }
-    } catch (e) {
-      window.LedgerAPI.setToken(null);
+    const authRes = await window.LedgerAuth.checkSession();
+    if (authRes.authenticated) {
+      window.location.replace('/#dashboard');
+      return;
     }
 
     splash.remove();
@@ -127,13 +123,35 @@ async function handleLogin(e) {
   const errorBox = document.getElementById('auth-error');
   const btn = document.getElementById('submit-btn');
 
+  if (!email || !password) {
+    errorBox.textContent = 'Please enter both your email address and password';
+    errorBox.style.display = 'block';
+    return;
+  }
+
   errorBox.style.display = 'none';
   btn.disabled = true;
-  btn.textContent = 'Signing in...';
+  btn.textContent = 'Signing you in...';
 
   try {
-    const res = await window.LedgerAPI.login(email, password);
-    window.location.replace('/');
+    // 1. Send authentication request & verify credentials
+    await window.LedgerAuth.login(email, password);
+
+    // 2. Transition loading state
+    btn.textContent = 'Loading Ledger...';
+
+    // 3. Pre-warm financial data
+    try {
+      await Promise.all([
+        window.LedgerAPI.getOverview().catch(() => null),
+        window.LedgerAPI.getHealth().catch(() => null)
+      ]);
+    } catch (e) {
+      // Non-blocking pre-warm
+    }
+
+    // 4. Open the main Dashboard directly
+    window.location.replace('/#dashboard');
   } catch (err) {
     errorBox.textContent = err.message || 'Invalid email or password';
     errorBox.style.display = 'block';

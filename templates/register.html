@@ -124,14 +124,10 @@
     `;
     document.body.appendChild(splash);
 
-    try {
-      const me = await window.LedgerAPI.getMe();
-      if (me && me.authenticated) {
-        window.location.replace('/');
-        return;
-      }
-    } catch (e) {
-      window.LedgerAPI.setToken(null);
+    const authRes = await window.LedgerAuth.checkSession();
+    if (authRes.authenticated) {
+      window.location.replace('/#dashboard');
+      return;
     }
 
     splash.remove();
@@ -148,13 +144,35 @@ async function handleRegister(e) {
   const errorBox = document.getElementById('auth-error');
   const btn = document.getElementById('submit-btn');
 
+  if (!full_name || !email || !password) {
+    errorBox.textContent = 'Please fill in all required fields';
+    errorBox.style.display = 'block';
+    return;
+  }
+
   errorBox.style.display = 'none';
   btn.disabled = true;
-  btn.textContent = 'Creating account...';
+  btn.textContent = 'Creating your account...';
 
   try {
-    const res = await window.LedgerAPI.register(full_name, email, password, currency);
-    window.location.replace('/');
+    // 1. Send registration request & create user session
+    await window.LedgerAuth.register(full_name, email, password, currency);
+
+    // 2. Transition loading state
+    btn.textContent = 'Setting up your Ledger...';
+
+    // 3. Pre-warm default categories/data
+    try {
+      await Promise.all([
+        window.LedgerAPI.getOverview().catch(() => null),
+        window.LedgerAPI.getCategories().catch(() => null)
+      ]);
+    } catch (e) {
+      // Non-blocking
+    }
+
+    // 4. Open the main Dashboard directly
+    window.location.replace('/#dashboard');
   } catch (err) {
     errorBox.textContent = err.message || 'Registration failed';
     errorBox.style.display = 'block';

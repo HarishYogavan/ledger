@@ -130,12 +130,14 @@ def verify_jwt(token: str) -> tuple[int, int | None] | None:
     except Exception:
         return None
 
-def validate_user_session(user_id: int, session_id: int | None = None) -> UserSession | None:
+def validate_user_session(user_id: int, session_id: int | None = None, user_agent_str: str = "", ip_address: str = "") -> UserSession | None:
     """Validates session record in database, ensuring it is active and not expired."""
     now = datetime.now(timezone.utc)
     if session_id:
-        sess = UserSession.query.filter_by(id=session_id, user_id=user_id, is_active=True).first()
+        sess = UserSession.query.filter_by(id=session_id, user_id=user_id).first()
         if sess:
+            if not sess.is_active:
+                return None
             if is_session_expired(sess.expires_at):
                 sess.is_active = False
                 db.session.commit()
@@ -143,7 +145,29 @@ def validate_user_session(user_id: int, session_id: int | None = None) -> UserSe
             sess.last_active = now
             db.session.commit()
             return sess
-        return None
+        
+        # If valid cryptographically signed JWT has session_id, but row is missing in SQLite (e.g. serverless cold start):
+        device_name, browser_name = parse_client_device(user_agent_str)
+        reconciled = UserSession(
+            id=session_id,
+            user_id=user_id,
+            session_token=secrets.token_urlsafe(36),
+            device_name=device_name,
+            browser_name=browser_name,
+            ip_address=ip_address or "127.0.0.1",
+            created_at=now,
+            last_active=now,
+            expires_at=now + timedelta(days=30),
+            is_active=True,
+        )
+        try:
+            db.session.add(reconciled)
+            db.session.commit()
+            return reconciled
+        except Exception:
+            db.session.rollback()
+            latest = UserSession.query.filter_by(user_id=user_id, is_active=True).order_by(UserSession.last_active.desc()).first()
+            return latest
     
     # If token has no sid (legacy or session cookie), check/create session
     latest = UserSession.query.filter_by(user_id=user_id, is_active=True).order_by(UserSession.last_active.desc()).first()

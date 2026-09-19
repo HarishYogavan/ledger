@@ -72,8 +72,23 @@ def create_app(test_config=None):
     app.register_blueprint(locations_bp)
     app.register_blueprint(monthly_story_bp)
 
-    # UI Pages
+    # UI Pages & Protected Application Routes
     @app.route("/")
+    @app.route("/dashboard")
+    @app.route("/transactions")
+    @app.route("/budgets")
+    @app.route("/analytics")
+    @app.route("/goals")
+    @app.route("/calendar")
+    @app.route("/twin")
+    @app.route("/health")
+    @app.route("/net-worth")
+    @app.route("/purchases")
+    @app.route("/documents")
+    @app.route("/shared-expenses")
+    @app.route("/reports")
+    @app.route("/settings")
+    @app.route("/more")
     def index():
         return render_template("index.html")
 
