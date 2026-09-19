@@ -95,7 +95,7 @@ def create_user_session(user_id: int, user_agent_str: str = "", ip_address: str 
 def generate_jwt(user_id: int, session_id: int | None = None) -> str:
     """Generates a secure 30-day JWT token with user_id and session_id claims."""
     payload = {
-        "sub": user_id,
+        "sub": str(user_id),
         "sid": session_id,
         "iat": datetime.now(timezone.utc),
         "exp": datetime.now(timezone.utc) + timedelta(days=30),
@@ -122,11 +122,11 @@ def verify_jwt(token: str) -> tuple[int, int | None] | None:
     """Verifies JWT signature and returns (user_id, session_id)."""
     try:
         payload = jwt.decode(token, Config.SECRET_KEY, algorithms=["HS256"])
-        user_id = payload.get("sub")
+        sub = payload.get("sub")
         session_id = payload.get("sid")
-        if not user_id:
+        if not sub:
             return None
-        return (user_id, session_id)
+        return (int(sub), session_id)
     except Exception:
         return None
 

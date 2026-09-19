@@ -8,29 +8,8 @@ from services.auth_service import (
     invalidate_all_other_sessions, verify_jwt, extract_token_from_request
 )
 from routes import login_required
-from config import Config
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
-
-@auth_bp.route("/debug-auth", methods=["GET"])
-def debug_auth():
-    token = extract_token_from_request(request)
-    jwt_res = None
-    err = None
-    if token:
-        try:
-            import jwt
-            payload = jwt.decode(token, Config.SECRET_KEY, algorithms=["HS256"])
-            jwt_res = payload
-        except Exception as e:
-            err = str(e)
-    return jsonify({
-        "extracted_token": token[:20] if token else None,
-        "jwt_res": jwt_res,
-        "jwt_err": err,
-        "secret_key": Config.SECRET_KEY[:8],
-        "headers": {k: v for k, v in request.headers.items() if "cookie" not in k.lower()}
-    })
 
 @auth_bp.route("/register", methods=["POST"])
 def register():
