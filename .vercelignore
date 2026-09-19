@@ -1,0 +1,10 @@
+.env
+.env.local
+.env.*
+.git
+.github
+tests/
+verify_live_app.py
+*.pyc
+__pycache__
+.pytest_cache

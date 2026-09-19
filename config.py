@@ -9,12 +9,29 @@ class Config:
     SECRET_KEY = os.getenv("SECRET_KEY", "ledger-dev-secret-key-2026")
     
     # Check if running in Vercel or serverless environment
-    is_vercel = bool(os.getenv("VERCEL"))
-    if is_vercel:
-        DATABASE_PATH = os.getenv("DATABASE_PATH", "/tmp/ledger.db")
-        UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER", "/tmp/uploads")
+    is_serverless = bool(
+        os.getenv("VERCEL")
+        or os.getenv("VERCEL_ENV")
+        or os.getenv("AWS_LAMBDA_FUNCTION_NAME")
+        or os.getenv("LAMBDA_TASK_ROOT")
+        or os.path.exists("/var/task")
+    )
+    
+    if is_serverless:
+        # In serverless/Lambda, only /tmp is writable
+        db_file = Path("/tmp/ledger.db")
+        seed_file = BASE_DIR / "ledger.db"
+        if not db_file.exists() and seed_file.exists():
+            try:
+                import shutil
+                shutil.copyfile(str(seed_file), str(db_file))
+            except Exception:
+                pass
+        DATABASE_PATH = str(db_file)
+        UPLOAD_FOLDER = "/tmp/uploads"
     else:
-        DATABASE_PATH = os.getenv("DATABASE_PATH", str(BASE_DIR / "ledger.db"))
+        raw_db_path = os.getenv("DATABASE_PATH", str(BASE_DIR / "ledger.db"))
+        DATABASE_PATH = str(BASE_DIR / raw_db_path) if not os.path.isabs(raw_db_path) else raw_db_path
         UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER", str(BASE_DIR / "uploads"))
 
     db_url = os.getenv("DATABASE_URL")
