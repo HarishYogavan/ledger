@@ -10,6 +10,7 @@ from services.auth_service import (
     invalidate_all_other_sessions, verify_jwt, extract_token_from_request,
     generate_jwt
 )
+from services.cloud_sync import save_cloud_user, get_cloud_user, delete_cloud_user
 from routes import login_required
 
 logger = logging.getLogger(__name__)
@@ -39,7 +40,8 @@ def register():
         return jsonify({"error": "Password must be at least 8 characters long"}), 400
 
     existing = User.query.filter_by(email=email).first()
-    if existing:
+    cloud_user = get_cloud_user(email)
+    if existing or cloud_user:
         logger.info("Registration duplicate check hit for email: %s", email)
         return jsonify({"error": "An account with this email address already exists"}), 409
 
@@ -77,6 +79,24 @@ def register():
     except Exception as e:
         logger.warning("Default seeding non-fatal error for user_id %s: %s", new_user.id, str(e))
 
+    # Persist user to cloud sync KV for instant cross-container serverless availability
+    try:
+        cloud_payload = {
+            "id": new_user.id,
+            "email": new_user.email,
+            "password_hash": new_user.password_hash,
+            "full_name": new_user.full_name,
+            "currency": new_user.currency,
+            "theme": new_user.theme or "dark",
+            "privacy_mode": bool(new_user.privacy_mode),
+            "onboarding_completed": bool(new_user.onboarding_completed),
+        }
+        save_cloud_user(email, cloud_payload)
+        save_cloud_user(f"id_{new_user.id}", cloud_payload)
+        logger.info("User persisted to cloud sync for email: %s, id: %s", email, new_user.id)
+    except Exception as e:
+        logger.warning("Failed to persist user to cloud sync: %s", str(e))
+
     # Create persistent device session & 30-day token
     user_agent = request.headers.get("User-Agent", "")
     ip_addr = request.headers.get("X-Forwarded-For", request.remote_addr or "").split(",")[0].strip()
@@ -106,6 +126,62 @@ def login():
         return jsonify({"error": "Email and password are required"}), 400
 
     user = User.query.filter_by(email=email).first()
+
+    # If user record is missing in this serverless container, hydrate from cloud sync
+    if not user:
+        cloud_user = get_cloud_user(email)
+        if cloud_user and verify_password(password, cloud_user.get("password_hash", "")):
+            try:
+                user = User(
+                    id=cloud_user.get("id"),
+                    email=cloud_user.get("email"),
+                    password_hash=cloud_user.get("password_hash"),
+                    full_name=cloud_user.get("full_name", "User"),
+                    currency=cloud_user.get("currency", "₹"),
+                    theme=cloud_user.get("theme", "dark"),
+                    privacy_mode=bool(cloud_user.get("privacy_mode", False)),
+                    onboarding_completed=bool(cloud_user.get("onboarding_completed", False))
+                )
+                db.session.add(user)
+                db.session.commit()
+                try:
+                    seed_default_categories(user.id)
+                    settings = UserSettings(user_id=user.id)
+                    db.session.add(settings)
+                    db.session.commit()
+                except Exception:
+                    db.session.rollback()
+                logger.info("Hydrated user %s (id: %s) from cloud sync during login", email, user.id)
+            except Exception as e:
+                db.session.rollback()
+                logger.warning("Error hydrating user from cloud sync: %s", str(e))
+                user = User.query.filter_by(email=email).first()
+
+    if not user or not verify_password(password, user.password_hash):
+        # Check if cloud sync has an updated password hash
+        cloud_user = get_cloud_user(email)
+        if cloud_user and verify_password(password, cloud_user.get("password_hash", "")):
+            if user:
+                user.password_hash = cloud_user["password_hash"]
+                db.session.commit()
+            else:
+                try:
+                    user = User(
+                        id=cloud_user.get("id"),
+                        email=cloud_user.get("email"),
+                        password_hash=cloud_user.get("password_hash"),
+                        full_name=cloud_user.get("full_name", "User"),
+                        currency=cloud_user.get("currency", "₹"),
+                        theme=cloud_user.get("theme", "dark"),
+                        privacy_mode=bool(cloud_user.get("privacy_mode", False)),
+                        onboarding_completed=bool(cloud_user.get("onboarding_completed", False))
+                    )
+                    db.session.add(user)
+                    db.session.commit()
+                except Exception:
+                    db.session.rollback()
+                    user = User.query.filter_by(email=email).first()
+
     if not user or not verify_password(password, user.password_hash):
         return jsonify({"error": "Invalid email or password"}), 401
 
@@ -142,42 +218,6 @@ def logout():
 
     session.clear()
     return jsonify({"message": "Logged out successfully"}), 200
-
-@auth_bp.route("/demo", methods=["POST"])
-def demo_login():
-    demo_email = "live_verifier@ledger.finance"
-    user = User.query.filter_by(email=demo_email).first()
-    if not user:
-        user = User(
-            email=demo_email,
-            password_hash=hash_password("SecurePassword123!"),
-            full_name="Live Verifier",
-            currency="₹",
-            theme="dark",
-            privacy_mode=False,
-            onboarding_completed=True,
-        )
-        db.session.add(user)
-        db.session.commit()
-        seed_default_categories(user.id)
-        settings = UserSettings(user_id=user.id)
-        db.session.add(settings)
-        db.session.commit()
-
-    user_agent = request.headers.get("User-Agent", "")
-    ip_addr = request.headers.get("X-Forwarded-For", request.remote_addr or "").split(",")[0].strip()
-    token, session_record = create_user_session(user.id, user_agent, ip_addr)
-
-    session.permanent = True
-    session["user_id"] = user.id
-    session["session_id"] = session_record.id
-
-    return jsonify({
-        "message": "Demo session started",
-        "user": user.to_dict(),
-        "token": token,
-        "session_id": session_record.id,
-    }), 200
 
 @auth_bp.route("/me", methods=["GET"])
 @login_required
@@ -226,11 +266,21 @@ def reset_password():
         return jsonify({"error": "New password must be at least 8 characters long"}), 400
 
     user = User.query.filter_by(email=email).first()
-    if not user:
+    cloud_user = get_cloud_user(email)
+    if not user and not cloud_user:
         return jsonify({"message": "If an account matches this email, the password has been reset."}), 200
 
-    user.password_hash = hash_password(new_password)
-    db.session.commit()
+    new_hash = hash_password(new_password)
+    if user:
+        user.password_hash = new_hash
+        db.session.commit()
+
+    if cloud_user:
+        cloud_user["password_hash"] = new_hash
+        save_cloud_user(email, cloud_user)
+        if "id" in cloud_user:
+            save_cloud_user(f"id_{cloud_user['id']}", cloud_user)
+
     return jsonify({"message": "Password updated successfully. You can now log in."}), 200
 
 @auth_bp.route("/onboarding", methods=["POST"])
@@ -283,8 +333,11 @@ def delete_account():
         return jsonify({"error": "Incorrect password. Account deletion canceled."}), 403
 
     user_id = user.id
+    email = user.email
     db.session.delete(user)
     db.session.commit()
+    delete_cloud_user(email)
+    delete_cloud_user(f"id_{user_id}")
     session.clear()
 
     return jsonify({"message": f"Account #{user_id} and all associated data permanently deleted."}), 200

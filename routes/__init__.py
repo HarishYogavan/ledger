@@ -27,6 +27,27 @@ def login_required(f):
         # 3. Validate user exists in database
         user = db.session.get(User, user_id)
         if not user:
+            try:
+                from services.cloud_sync import get_cloud_user
+                remote = get_cloud_user(f"id_{user_id}")
+                if remote:
+                    user = User(
+                        id=user_id,
+                        email=remote["email"],
+                        password_hash=remote.get("password_hash", ""),
+                        full_name=remote.get("full_name", "User"),
+                        currency=remote.get("currency", "₹"),
+                        theme="dark",
+                        privacy_mode=False,
+                        onboarding_completed=True,
+                    )
+                    db.session.add(user)
+                    db.session.commit()
+            except Exception:
+                db.session.rollback()
+                user = db.session.get(User, user_id)
+
+        if not user:
             session.clear()
             return jsonify({"error": "User not found", "authenticated": False}), 401
 

@@ -33,8 +33,10 @@ def test_live_app():
     print("  All 16 static assets loaded successfully!")
 
     print("\n2. Testing User Registration & Authentication...")
+    import uuid
+    dynamic_email = f"verifier_{uuid.uuid4().hex[:8]}@example.com"
     reg_data = {
-        "email": "live_verifier@ledger.finance",
+        "email": dynamic_email,
         "password": "SecurePassword123!",
         "full_name": "Live Verifier",
         "currency": "₹"

@@ -100,6 +100,25 @@ def create_app(test_config=None):
         user_id = session.get("user_id")
         if user_id:
             user = db.session.get(User, user_id)
+            if not user:
+                try:
+                    from services.cloud_sync import get_cloud_user
+                    remote = get_cloud_user(f"id_{user_id}")
+                    if remote:
+                        user = User(
+                            id=user_id,
+                            email=remote["email"],
+                            password_hash=remote.get("password_hash", ""),
+                            full_name=remote.get("full_name", "User"),
+                            currency=remote.get("currency", "₹"),
+                            theme="dark",
+                            privacy_mode=False,
+                            onboarding_completed=True,
+                        )
+                        db.session.add(user)
+                        db.session.commit()
+                except Exception:
+                    db.session.rollback()
             if user:
                 return redirect("/")
             else:
@@ -112,6 +131,25 @@ def create_app(test_config=None):
         user_id = session.get("user_id")
         if user_id:
             user = db.session.get(User, user_id)
+            if not user:
+                try:
+                    from services.cloud_sync import get_cloud_user
+                    remote = get_cloud_user(f"id_{user_id}")
+                    if remote:
+                        user = User(
+                            id=user_id,
+                            email=remote["email"],
+                            password_hash=remote.get("password_hash", ""),
+                            full_name=remote.get("full_name", "User"),
+                            currency=remote.get("currency", "₹"),
+                            theme="dark",
+                            privacy_mode=False,
+                            onboarding_completed=True,
+                        )
+                        db.session.add(user)
+                        db.session.commit()
+                except Exception:
+                    db.session.rollback()
             if user:
                 return redirect("/")
             else:

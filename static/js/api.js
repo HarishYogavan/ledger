@@ -104,11 +104,6 @@ window.LedgerAPI = {
     if (res && res.token) this.setToken(res.token);
     return res;
   },
-  async demoLogin() {
-    const res = await this.request('/api/auth/demo', { method: 'POST' });
-    if (res && res.token) this.setToken(res.token);
-    return res;
-  },
   async register(full_name, email, password, currency) {
     const res = await this.request('/api/auth/register', {
       method: 'POST',
@@ -353,23 +348,6 @@ window.LedgerAuth = {
     }
   },
 
-  async demoLogin() {
-    this.setState(this.STATE_LOADING, null);
-    try {
-      const res = await window.LedgerAPI.demoLogin();
-      if (!res || !res.token) {
-        this.setState(this.STATE_UNAUTHENTICATED, null);
-        throw new Error((res && res.error) || 'Demo access failed');
-      }
-      window.LedgerAPI.setToken(res.token);
-      const user = res.user;
-      this.setState(this.STATE_AUTHENTICATED, user);
-      return { user, token: res.token };
-    } catch (err) {
-      this.setState(this.STATE_UNAUTHENTICATED, null);
-      throw err;
-    }
-  },
 
   async login(email, password) {
     this.setState(this.STATE_LOADING, null);
