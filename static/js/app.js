@@ -20,6 +20,7 @@ window.LedgerApp = {
       // 1. Check & verify persistent authentication state
       const authResult = await window.LedgerAuth.checkSession();
       if (!authResult.authenticated || !authResult.user) {
+        hideSplash();
         window.location.replace('/login');
         return;
       }
@@ -87,6 +88,7 @@ window.LedgerApp = {
 
     } catch (err) {
       console.error('Ledger Init Failure:', err);
+      hideSplash();
       window.LedgerAuth.setState(window.LedgerAuth.STATE_UNAUTHENTICATED, null);
       window.location.replace('/login');
     }

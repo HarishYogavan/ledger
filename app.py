@@ -1,7 +1,7 @@
 import os
 from flask import Flask, render_template, send_from_directory, redirect, url_for, session, request, jsonify
 from config import Config
-from models import db
+from models import db, User
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -74,6 +74,9 @@ def create_app(test_config=None):
 
     # UI Pages & Protected Application Routes
     @app.route("/")
+    def index():
+        return render_template("index.html")
+
     @app.route("/dashboard")
     @app.route("/transactions")
     @app.route("/budgets")
@@ -89,19 +92,30 @@ def create_app(test_config=None):
     @app.route("/reports")
     @app.route("/settings")
     @app.route("/more")
-    def index():
+    def app_views():
         return render_template("index.html")
 
     @app.route("/login")
     def login_page():
-        if "user_id" in session:
-            return redirect(url_for("index"))
+        user_id = session.get("user_id")
+        if user_id:
+            user = db.session.get(User, user_id)
+            if user:
+                return redirect("/")
+            else:
+                # Clear orphaned session cookie
+                session.clear()
         return render_template("login.html")
 
     @app.route("/register")
     def register_page():
-        if "user_id" in session:
-            return redirect(url_for("index"))
+        user_id = session.get("user_id")
+        if user_id:
+            user = db.session.get(User, user_id)
+            if user:
+                return redirect("/")
+            else:
+                session.clear()
         return render_template("register.html")
 
     @app.route("/reset-password")

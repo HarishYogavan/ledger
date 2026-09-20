@@ -39,6 +39,7 @@ window.LedgerAPI = {
     }, timeoutMs);
 
     const config = {
+      credentials: 'same-origin',
       ...options,
       headers,
       signal: controller.signal
@@ -100,6 +101,11 @@ window.LedgerAPI = {
       method: 'POST',
       body: JSON.stringify({ email, password })
     });
+    if (res && res.token) this.setToken(res.token);
+    return res;
+  },
+  async demoLogin() {
+    const res = await this.request('/api/auth/demo', { method: 'POST' });
     if (res && res.token) this.setToken(res.token);
     return res;
   },
@@ -324,14 +330,14 @@ window.LedgerAuth = {
   async checkSession() {
     this.setState(this.STATE_LOADING, null);
     const token = window.LedgerAPI.getToken();
-    if (!token) {
-      this.setState(this.STATE_UNAUTHENTICATED, null);
-      return { authenticated: false, state: this.STATE_UNAUTHENTICATED };
-    }
 
     try {
-      const res = await window.LedgerAPI.getMe();
+      // 4-second timeout to prevent UI locking on cold starts
+      const res = await window.LedgerAPI.request('/api/auth/me', { timeout: 4000 });
       if (res && res.authenticated && res.user) {
+        if (res.token) {
+          window.LedgerAPI.setToken(res.token);
+        }
         this.setState(this.STATE_AUTHENTICATED, res.user);
         return { authenticated: true, user: res.user, state: this.STATE_AUTHENTICATED };
       } else {
@@ -344,6 +350,24 @@ window.LedgerAuth = {
       window.LedgerAPI.setToken(null);
       this.setState(this.STATE_UNAUTHENTICATED, null);
       return { authenticated: false, state: this.STATE_UNAUTHENTICATED, error: err };
+    }
+  },
+
+  async demoLogin() {
+    this.setState(this.STATE_LOADING, null);
+    try {
+      const res = await window.LedgerAPI.demoLogin();
+      if (!res || !res.token) {
+        this.setState(this.STATE_UNAUTHENTICATED, null);
+        throw new Error((res && res.error) || 'Demo access failed');
+      }
+      window.LedgerAPI.setToken(res.token);
+      const user = res.user;
+      this.setState(this.STATE_AUTHENTICATED, user);
+      return { user, token: res.token };
+    } catch (err) {
+      this.setState(this.STATE_UNAUTHENTICATED, null);
+      throw err;
     }
   },
 

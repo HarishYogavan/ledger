@@ -7,7 +7,8 @@ from services.auth_service import (
     hash_password, verify_password, seed_default_categories,
     export_all_user_data_zip, create_user_session,
     validate_user_session, get_active_sessions, invalidate_session,
-    invalidate_all_other_sessions, verify_jwt, extract_token_from_request
+    invalidate_all_other_sessions, verify_jwt, extract_token_from_request,
+    generate_jwt
 )
 from routes import login_required
 
@@ -142,13 +143,51 @@ def logout():
     session.clear()
     return jsonify({"message": "Logged out successfully"}), 200
 
+@auth_bp.route("/demo", methods=["POST"])
+def demo_login():
+    demo_email = "live_verifier@ledger.finance"
+    user = User.query.filter_by(email=demo_email).first()
+    if not user:
+        user = User(
+            email=demo_email,
+            password_hash=hash_password("SecurePassword123!"),
+            full_name="Live Verifier",
+            currency="₹",
+            theme="dark",
+            privacy_mode=False,
+            onboarding_completed=True,
+        )
+        db.session.add(user)
+        db.session.commit()
+        seed_default_categories(user.id)
+        settings = UserSettings(user_id=user.id)
+        db.session.add(settings)
+        db.session.commit()
+
+    user_agent = request.headers.get("User-Agent", "")
+    ip_addr = request.headers.get("X-Forwarded-For", request.remote_addr or "").split(",")[0].strip()
+    token, session_record = create_user_session(user.id, user_agent, ip_addr)
+
+    session.permanent = True
+    session["user_id"] = user.id
+    session["session_id"] = session_record.id
+
+    return jsonify({
+        "message": "Demo session started",
+        "user": user.to_dict(),
+        "token": token,
+        "session_id": session_record.id,
+    }), 200
+
 @auth_bp.route("/me", methods=["GET"])
 @login_required
 def me():
     current_sid = getattr(request, "current_session_id", None) or session.get("session_id")
+    token = generate_jwt(request.current_user.id, current_sid)
     return jsonify({
         "user": request.current_user.to_dict(),
         "session_id": current_sid,
+        "token": token,
         "authenticated": True
     }), 200
 

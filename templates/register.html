@@ -265,11 +265,22 @@ function setFormState(state) {
     `;
     document.body.appendChild(splash);
 
-    const authRes = await window.LedgerAuth.checkSession();
-    if (authRes.authenticated) {
-      console.log('[RegisterView] Existing session detected. Redirecting to Dashboard.');
-      window.location.replace('/dashboard');
-      return;
+    // Watchdog to prevent hanging
+    const watchdog = setTimeout(() => {
+      splash.remove();
+      if (card) card.style.display = 'block';
+    }, 2500);
+
+    try {
+      const authRes = await window.LedgerAuth.checkSession();
+      clearTimeout(watchdog);
+      if (authRes.authenticated) {
+        console.log('[RegisterView] Existing session detected. Redirecting to Dashboard.');
+        window.location.replace('/#dashboard');
+        return;
+      }
+    } catch (e) {
+      clearTimeout(watchdog);
     }
 
     splash.remove();
@@ -368,8 +379,8 @@ async function handleRegister(e) {
     }
 
     // 4. Redirect to Dashboard
-    console.log('[RegisterView] Navigating to Dashboard: /dashboard');
-    window.location.replace('/dashboard');
+    console.log('[RegisterView] Navigating to Dashboard: /#dashboard');
+    window.location.replace('/#dashboard');
 
   } catch (err) {
     console.error('[RegisterView] Registration error caught:', err.message);

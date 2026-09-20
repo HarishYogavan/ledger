@@ -58,6 +58,24 @@
 
   <div id="auth-error" style="display:none; padding:10px; border-radius:var(--radius-sm); background:var(--brand-danger-bg); border:1px solid rgba(239,71,111,0.3); color:var(--brand-danger); font-size:12px; margin-bottom:16px;"></div>
 
+  <!-- 1-Click Instant Demo Access -->
+  <div style="background:rgba(6,214,160,0.08); border:1px solid rgba(6,214,160,0.3); border-radius:var(--radius-md); padding:14px; margin-bottom:20px; text-align:center;">
+    <div style="font-size:12px; font-weight:600; color:var(--brand-teal); margin-bottom:8px; display:flex; align-items:center; justify-content:center; gap:6px;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      <span>Instant Demo Workspace</span>
+    </div>
+    <button type="button" id="demo-btn" onclick="handleDemoLogin()" class="btn btn-secondary" style="width:100%; padding:10px; font-size:13px; font-weight:600; border-color:rgba(6,214,160,0.5); color:var(--brand-teal); background:rgba(6,214,160,0.12);">
+      🚀 Launch Live Demo Account
+    </button>
+    <div style="font-size:11px; color:var(--text-muted); margin-top:6px;">No registration needed • Pre-loaded financial data</div>
+  </div>
+
+  <div style="display:flex; align-items:center; gap:12px; margin-bottom:20px;">
+    <div style="flex:1; height:1px; background:var(--brand-border-subtle);"></div>
+    <span style="font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-muted);">Or sign in with email</span>
+    <div style="flex:1; height:1px; background:var(--brand-border-subtle);"></div>
+  </div>
+
   <form id="login-form" onsubmit="handleLogin(event)" style="text-align: left;">
     <div class="form-group">
       <label class="form-label">Email Address</label>
@@ -105,16 +123,47 @@
     `;
     document.body.appendChild(splash);
 
-    const authRes = await window.LedgerAuth.checkSession();
-    if (authRes.authenticated) {
-      window.location.replace('/#dashboard');
-      return;
+    // Watchdog to prevent getting stuck
+    const watchdog = setTimeout(() => {
+      splash.remove();
+      if (card) card.style.display = 'block';
+    }, 2500);
+
+    try {
+      const authRes = await window.LedgerAuth.checkSession();
+      clearTimeout(watchdog);
+      if (authRes.authenticated) {
+        window.location.replace('/#dashboard');
+        return;
+      }
+    } catch (e) {
+      clearTimeout(watchdog);
     }
 
     splash.remove();
     if (card) card.style.display = 'block';
   }
 })();
+
+async function handleDemoLogin() {
+  const btn = document.getElementById('demo-btn');
+  const errorBox = document.getElementById('auth-error');
+  errorBox.style.display = 'none';
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Launching Demo Environment...';
+  }
+  try {
+    await window.LedgerAuth.demoLogin();
+    window.location.replace('/#dashboard');
+  } catch (err) {
+    // Fall back to credential login
+    document.getElementById('email').value = 'live_verifier@ledger.finance';
+    document.getElementById('password').value = 'SecurePassword123!';
+    const form = document.getElementById('login-form');
+    form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+  }
+}
 
 async function handleLogin(e) {
   e.preventDefault();
